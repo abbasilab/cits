@@ -440,7 +440,7 @@ def plot_graph(A, labels=None, groups=None, ax=None, layout="auto",
 
 def plot_matrix(A, labels=None, groups=None, ax=None, vmin=None, vmax=None,
                 cmap=None, robust_percentile=98, group_colors=None,
-                title=None):
+                side_strips=False, title=None):
     """Adjacency heatmap in the paper's Neuropixels style (matshow, diverging).
 
     By default the color scale is a ROBUST SYMMETRIC diverging scale: `vmax` is
@@ -450,9 +450,9 @@ def plot_matrix(A, labels=None, groups=None, ax=None, vmin=None, vmax=None,
     explicit `vmin`/`vmax` to override (e.g. `vmin=-0.1, vmax=0.1` reproduces
     the paper's fixed scale).
 
-    When `groups` is given, thin colored side-strips along the top and left
-    edges indicate each node's group (same per-group colors as `plot_graph`),
-    with subtle separator lines between groups.
+    When `groups` is given, subtle separator lines mark the group boundaries.
+    Colored side-strips are opt-in via `side_strips=True` and are only
+    meaningful when the nodes are ordered by group.
 
     Parameters
     ----------
@@ -478,6 +478,9 @@ def plot_matrix(A, labels=None, groups=None, ax=None, vmin=None, vmax=None,
         symmetric `vmax` (default 98).
     group_colors : dict, optional
         {group_label: color} override for the side-strip colors.
+    side_strips : bool
+        If True, draw colored group side-strips along the top and left edges
+        (only sensible when nodes are ordered by group). Default False.
     title : str, optional
 
     Returns
@@ -533,28 +536,33 @@ def plot_matrix(A, labels=None, groups=None, ax=None, vmin=None, vmax=None,
 
     if groups is not None:
         gvals = _group_values(groups, p)
-        strip_colors, _legend = _node_colors(gvals, group_colors, plt)
-        from matplotlib.patches import Rectangle
-        strip = max(0.6, p * 0.02)   # side-strip thickness in cell units
-        gap = 0.15
-        for i in range(p):
-            col = strip_colors[i] if strip_colors[i] is not None else "#cccccc"
-            # top strip (above row 0): spans column i
-            ax.add_patch(Rectangle((i - 0.5, -(strip + gap)), 1.0, strip,
-                                    facecolor=col, edgecolor="none",
-                                    clip_on=False, zorder=3))
-            # left strip: spans row i
-            ax.add_patch(Rectangle((-(strip + gap), i - 0.5), strip, 1.0,
-                                    facecolor=col, edgecolor="none",
-                                    clip_on=False, zorder=3))
-        # subtle separators where the group changes
-        for k in range(p - 1):
-            if gvals[k] != gvals[k + 1]:
-                ax.axhline(k + 0.5, color="#999999", linewidth=0.6)
-                ax.axvline(k + 0.5, color="#999999", linewidth=0.6)
-        # widen limits so the side-strips are visible
-        ax.set_xlim(-(strip + gap) - 0.2, p - 0.5)
-        ax.set_ylim(p - 0.5, -(strip + gap) - 0.2)  # matshow y is inverted
+        # Only decorate when nodes are actually ordered by group (each group
+        # contiguous); otherwise separators/strips would be scattered clutter,
+        # so the matrix stays clean.
+        n_trans = sum(1 for k in range(p - 1) if gvals[k] != gvals[k + 1])
+        contiguous = n_trans == (len(set(gvals)) - 1)
+        if contiguous:
+            for k in range(p - 1):
+                if gvals[k] != gvals[k + 1]:
+                    ax.axhline(k + 0.5, color="#999999", linewidth=0.6)
+                    ax.axvline(k + 0.5, color="#999999", linewidth=0.6)
+        # colored group side-strips are OPT-IN (side_strips=True) and only drawn
+        # when nodes are group-ordered; off by default.
+        if side_strips and contiguous:
+            strip_colors, _legend = _node_colors(gvals, group_colors, plt)
+            from matplotlib.patches import Rectangle
+            strip = max(0.6, p * 0.02)   # side-strip thickness in cell units
+            gap = 0.15
+            for i in range(p):
+                col = strip_colors[i] if strip_colors[i] is not None else "#cccccc"
+                ax.add_patch(Rectangle((i - 0.5, -(strip + gap)), 1.0, strip,
+                                        facecolor=col, edgecolor="none",
+                                        clip_on=False, zorder=3))
+                ax.add_patch(Rectangle((-(strip + gap), i - 0.5), strip, 1.0,
+                                        facecolor=col, edgecolor="none",
+                                        clip_on=False, zorder=3))
+            ax.set_xlim(-(strip + gap) - 0.2, p - 0.5)
+            ax.set_ylim(p - 0.5, -(strip + gap) - 0.2)  # matshow y is inverted
 
     if title:
         ax.set_title(title, pad=10)
