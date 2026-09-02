@@ -7,14 +7,26 @@ Three ways to run CITS:
   3. Contemporaneous /  -- cits.cits_versionb
      Version B
 
+Or dispatch by name with ``cits.run(X, method)`` where method is one of
+'base', 'gpu', 'versionb'.
+
 The GPU and Version-B entry points require a compiled cuPC ``Skeleton.so``
 and a CUDA-capable GPU (see the README "GPU setup (cuPC)" section). Their
 imports degrade gracefully: ``import cits`` always succeeds on a CPU-only
 machine, and the GPU/Version-B functions raise a clear error when the cuPC
 dependency is unavailable at call time.
+
+Extras:
+  - ``cits.plot_graph`` / ``cits.plot_matrix`` -- publication-style figures
+    (needs matplotlib: ``pip install cits[viz]``).
+  - ``cits.run`` -- dispatch by method name.
+  - ``cits.cite`` -- print how to cite the paper.
+
+Logging: messages go through ``logging.getLogger('cits')``. Set its level to
+control verbosity; ``CITS_QUIET=1`` silences informational notices.
 """
 
-__version__ = "1.7.0"
+__version__ = "1.8.0"
 
 from . import methods, simulate_timeseries
 
@@ -65,10 +77,81 @@ except Exception as _vb_import_error:  # pragma: no cover - env dependent
             f"section). Original import error: {_cits_vb_err!r}"
         ) from _cits_vb_err
 
+# Plotting helpers. matplotlib is an optional dependency (extras 'viz');
+# plot.py imports it lazily, so this import itself never needs matplotlib.
+# Wrapped for safety so `import cits` never fails on a plotting-dep issue.
+try:
+    from .plot import plot_graph, plot_matrix
+except Exception as _plot_import_error:  # pragma: no cover - env dependent
+    _cits_plot_err = _plot_import_error
+
+    def plot_graph(*args, **kwargs):
+        raise ImportError(
+            "cits.plot_graph is unavailable; plotting requires matplotlib "
+            f"(pip install cits[viz]). Original import error: {_cits_plot_err!r}"
+        ) from _cits_plot_err
+
+    def plot_matrix(*args, **kwargs):
+        raise ImportError(
+            "cits.plot_matrix is unavailable; plotting requires matplotlib "
+            f"(pip install cits[viz]). Original import error: {_cits_plot_err!r}"
+        ) from _cits_plot_err
+
+
+_METHODS = ("base", "gpu", "versionb")
+
+
+def run(X, method, **kwargs):
+    """Unified entry point dispatching to the three CITS variants.
+
+    Parameters
+    ----------
+    X : array_like, shape (p, T)
+        Time series, p variables by T timepoints.
+    method : str
+        One of 'base' (-> cits.methods.cits_full), 'gpu' (-> cits.cits_gpu),
+        or 'versionb' (-> cits.cits_versionb).
+    **kwargs
+        Passed through to the dispatched function (e.g. tau, alpha, backend).
+
+    Returns
+    -------
+    The return value of the dispatched function.
+    """
+    if method == "base":
+        return methods.cits_full(X, **kwargs)
+    if method == "gpu":
+        return cits_gpu(X, **kwargs)
+    if method == "versionb":
+        return cits_versionb(X, **kwargs)
+    raise ValueError(
+        f"unknown method {method!r}; valid methods are {list(_METHODS)} "
+        f"('base' -> cits_full, 'gpu' -> cits_gpu, "
+        f"'versionb' -> cits_versionb).")
+
+
+_CITE = (
+    "Please cite the CITS paper:\n"
+    "  Biswas, R., Sripada, S., Mukherjee, S. & Abbasi-Asl, R. CITS: "
+    "Nonparametric Statistical Causal Modeling for High-Resolution Neural "
+    "Time Series. arXiv:2508.01920. https://arxiv.org/abs/2508.01920\n"
+    "The citation will be finalized upon publication; see the README "
+    "'Citation' section for the current reference.")
+
+
+def cite():
+    """Print how to cite CITS (arXiv pointer; finalized on publication)."""
+    print(_CITE)
+
+
 __all__ = [
     "methods",
     "simulate_timeseries",
     "cits_gpu",
     "cits_versionb",
+    "run",
     "set_cupc_dir",
+    "plot_graph",
+    "plot_matrix",
+    "cite",
 ]

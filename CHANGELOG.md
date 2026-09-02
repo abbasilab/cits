@@ -1,5 +1,49 @@
 # Changelog
 
+## v1.8
+
+Usability pass: plotting, input validation, logging, a unified dispatch
+facade, and a citation helper.
+
+### Added
+
+- **Plotting helpers (`cits.plot_graph`, `cits.plot_matrix`)** in a new module
+  `cits.plot`, in the style of the paper's causal-graph figures.
+  `plot_graph` renders a directed node-link graph (reciprocal pairs as a
+  single double-headed edge, width proportional to |weight|, nodes colored by
+  optional `groups` with a colorblind-safe Okabe-Ito palette). `plot_matrix`
+  renders an adjacency heatmap (diverging colormap for signed weights,
+  optional group separators). matplotlib is an OPTIONAL dependency
+  (`extras_require['viz']`, `pip install cits[viz]`), imported lazily; calling
+  a plot function without it raises a clear ImportError. `import cits` never
+  requires matplotlib.
+- **Unified dispatch facade `cits.run(X, method, **kwargs)`** with method in
+  {'base', 'gpu', 'versionb'} dispatching to `cits_full` / `cits_gpu` /
+  `cits_versionb`. Unknown methods raise a clear error listing the valid ones.
+- **Friendly input validation** at the top of `cits_full`,
+  `cits_full_weighted`, `cits_gpu`, and `cits_versionb`: requires a 2D array,
+  raises an actionable error on NaN/inf, warns when X looks transposed
+  (p > T, expected `(p variables, T timepoints)`), and warns (with offending
+  indices) on constant/all-zero variable rows (partial correlation is
+  undefined on constant series).
+- **`cits.cite()`** prints how to cite the paper (arXiv pointer; no fabricated
+  BibTeX; citation finalized on publication).
+
+### Changed
+
+- **Logging.** Informational notices (the one-time backend notice, verbose
+  progress markers) and the runtime GPU-fallback warning now route through
+  `logging.getLogger('cits')` (`log_info` / `log_warning`) instead of bare
+  prints. The logger gets a `NullHandler` and a default INFO level; when the
+  user has not configured logging, notices/warnings still appear on stderr
+  (no duplication once a handler is attached). `CITS_QUIET=1` still silences
+  informational notices; raising the `cits` logger level
+  (`logging.getLogger('cits').setLevel(...)`) is the standard way to control
+  verbosity. Warnings/errors still surface.
+- **Large-p CPU heads-up is now data-informed.** The notice cites the paper's
+  scaling benchmark (cuPC inferred p=1000-variable graphs in ~33 s) and keeps
+  ~100 variables as an approximate guideline. No CPU-CITS runtime is claimed.
+
 ## v1.7
 
 A correctness fix for exact paper reproduction, plus a user-experience pass so

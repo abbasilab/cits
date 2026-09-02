@@ -3,7 +3,7 @@ import setuptools
 with open('README.md','r') as fh:
     README = fh.read()
 
-VERSION = "1.7.0"
+VERSION = "1.8.0"
 
 setuptools.setup(
     # Needed to silence warnings (and to be a worthwhile package)
@@ -23,6 +23,9 @@ setuptools.setup(
         # Non-Gaussian HSIC CI test via R's kpcalg (also requires an R
         # install with the kpcalg package; see README).
         'hsic': ['rpy2'],
+        # Plotting helpers (cits.plot_graph / cits.plot_matrix). networkx is
+        # already a core dependency; matplotlib is only needed for plotting.
+        'viz': ['matplotlib'],
     },
     url='https://github.com/biswasr/CITS',
     packages=setuptools.find_packages(),

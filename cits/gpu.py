@@ -32,6 +32,7 @@ from __future__ import annotations
 import numpy as np
 
 from ._cupc_wrapper import pc_skeleton_cupc
+from ._common import validate_X
 
 
 def _build_chi_nonoverlap(X: np.ndarray, tau: int) -> np.ndarray:
@@ -120,6 +121,7 @@ def cits_gpu(X: np.ndarray, alpha: float = 0.05, tau: int = 1,
         contemporaneous structure. Same contract as the source
         ``gpu_cits_lag_cupc_faithful``.
     """
+    X = validate_X(X, "cits_gpu")
     return _lag_rolled_from_skeleton(
         X, pc_skeleton_cupc, alpha=alpha, tau=tau,
         max_level=max_level, verbose=verbose)

@@ -53,8 +53,6 @@ weight": exclude from weighted analyses, include in skeleton-only analyses.
 """
 
 from __future__ import annotations
-import os
-import sys
 import numpy as np
 
 from .gpu import _lag_rolled_from_skeleton
@@ -66,6 +64,7 @@ from ._pc_orientation import (
 )
 from ._union_cpdag import build_union
 from ._lscm_refit import lscm_refit_cpdag, ols_beta_for_child
+from ._common import log_info, log_warning, validate_X
 
 # One-time backend notice (per process). Silenceable via CITS_QUIET=1.
 _BACKEND_NOTICE_SHOWN = False
@@ -75,25 +74,20 @@ _BACKEND_NOTICE_SHOWN = False
 _LARGE_P_THRESHOLD = 100
 
 
-def _quiet():
-    """True if info-level notices are silenced (env CITS_QUIET truthy)."""
-    return os.environ.get('CITS_QUIET', '0') not in ('0', '', 'false', 'False')
-
-
-def _info(msg):
-    """Info-level notice to stderr (suppressed by CITS_QUIET)."""
-    if not _quiet():
-        print(msg, file=sys.stderr, flush=True)
-
-
-def _warn(msg):
-    """Warning to stderr. Always shown (not silenced by CITS_QUIET)."""
-    print(msg, file=sys.stderr, flush=True)
-
-
 def _progress(stage):
-    """Concise per-stage marker to stderr (only when verbose=True)."""
-    print(f"[cits versionB] {stage}", file=sys.stderr, flush=True)
+    """Concise per-stage marker (only when verbose=True), via the logger."""
+    log_info(f"[cits versionB] {stage}")
+
+
+def _cpu_large_p_msg(p):
+    """Data-informed heads-up for large-p CPU runs. The ~33 s figure is the
+    GPU (cuPC) number from the paper's scaling benchmark; no CPU-CITS runtime
+    is claimed. ~100 is an approximate guideline."""
+    return (f"cits: Version B on CPU with p={p} variables may be slow; the CPU "
+            f"skeleton search scales steeply with p. In our scaling benchmark "
+            f"the cuPC GPU backend inferred p=1000-variable graphs in ~33 s. "
+            f"The GPU backend is recommended above ~{_LARGE_P_THRESHOLD} "
+            f"variables (see README).")
 
 
 def _concrete_backend(backend):
@@ -136,23 +130,27 @@ def _backend_impl(name):
 
 
 def _emit_backend_notice(name, reason, p):
-    """One-time (per process) stderr notice of which backend runs and why."""
+    """One-time (per process) notice of which backend runs and why, routed
+    through the package logger (log_info)."""
     global _BACKEND_NOTICE_SHOWN
-    if _BACKEND_NOTICE_SHOWN or _quiet():
+    if _BACKEND_NOTICE_SHOWN:
         return
+    large_p = p > _LARGE_P_THRESHOLD
     if reason == 'auto-found':
-        _info("cits: using cuPC GPU backend.")
+        log_info("cits: using cuPC GPU backend.")
         _BACKEND_NOTICE_SHOWN = True
     elif reason == 'auto-notfound':
-        _info("cits: cuPC not found; using the CPU backend (fine up to ~100 "
-              "variables; see README 'GPU setup' to enable GPU acceleration).")
+        if large_p:
+            log_info(_cpu_large_p_msg(p))
+        else:
+            log_info("cits: cuPC not found; using the CPU backend (fine up to "
+                     "~100 variables; see README 'GPU setup' to enable GPU "
+                     "acceleration).")
         _BACKEND_NOTICE_SHOWN = True
-    elif reason == 'explicit' and name == 'cpu' and p > _LARGE_P_THRESHOLD:
-        _info(f"cits: running Version B on CPU with p={p} variables; the cuPC "
-              f"GPU backend is recommended above ~{_LARGE_P_THRESHOLD} "
-              f"variables for speed (see README).")
+    elif reason == 'explicit' and name == 'cpu' and large_p:
+        log_info(_cpu_large_p_msg(p))
         _BACKEND_NOTICE_SHOWN = True
-    # explicit cupc: no notice.
+    # explicit cupc, or explicit cpu with small p: no notice.
 
 
 def _skeleton_stages(X, X_Tp, alpha, tau, name, verbose):
@@ -246,9 +244,8 @@ def cits_versionb(X, alpha: float = 0.05, tau: int = 1, backend: str = 'auto',
         'lagged'         : (p, p) int rolled lagged adjacency
         'cpdag'          : (p, p) int contemp PC CPDAG
     """
-    X = np.asarray(X, dtype=np.float64)
-    if X.ndim != 2:
-        raise ValueError(f"X must be 2D (p, T); got shape {X.shape}")
+    X = validate_X(X, "cits_versionb")
+    X = np.ascontiguousarray(X, dtype=np.float64)
     p, T = X.shape
 
     if tau != 1:
@@ -273,8 +270,8 @@ def cits_versionb(X, alpha: float = 0.05, tau: int = 1, backend: str = 'auto',
         first = (str(e).splitlines() or [''])[0][:200]
         short = f"{type(e).__name__}: {first}" if first else type(e).__name__
         if backend == 'auto':
-            _warn(f"cits: cuPC GPU call failed ({short}); falling back to the "
-                  f"CPU backend. See README 'GPU setup'.")
+            log_warning(f"cits: cuPC GPU call failed ({short}); falling back "
+                        f"to the CPU backend. See README 'GPU setup'.")
             name = 'cpu'
             cits_lagged_B, pc_skel, sep_sets = _skeleton_stages(
                 X, X_Tp, alpha, tau, 'cpu', verbose)

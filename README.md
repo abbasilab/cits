@@ -139,6 +139,38 @@ parents_of_2 = np.where(adj[:, 2] != 0)[0]
 print("inferred causes of variable 2:", parents_of_2)   # expect {0, 1} for lingauss1
 ```
 
+### One entry point: `cits.run`
+
+`cits.run(X, method, **kwargs)` dispatches by name, with `method` one of
+`'base'`, `'gpu'`, `'versionb'`. Keyword arguments pass straight through to the
+underlying function.
+
+```python
+adj = cits.run(X, 'base', tau=1, alpha=0.05)          # -> methods.cits_full
+B_lag = cits.run(X, 'gpu', tau=1)                      # -> cits_gpu
+B = cits.run(X, 'versionb', backend='cpu')            # -> cits_versionb
+```
+
+### Plotting (optional)
+
+With the `viz` extra installed (`pip install cits[viz]`), draw the graph or
+its adjacency in the paper's style:
+
+```python
+import matplotlib.pyplot as plt
+groups = {0: 'src', 1: 'src', 2: 'mid', 3: 'sink'}
+cits.plot_graph(B, labels=['a','b','c','d'], groups=groups, title='causal graph')
+cits.plot_matrix(B, labels=['a','b','c','d'], groups=groups, title='adjacency')
+plt.show()
+```
+
+`plot_graph` draws directed edges as arrows, reciprocal pairs as a single
+double-headed edge, edge width proportional to |weight|, and colors nodes by
+`groups` (colorblind-safe palette). `plot_matrix` is a diverging heatmap for
+signed weights with optional group separators. Both raise a clear error
+telling you to `pip install cits[viz]` if matplotlib is missing; `import cits`
+never needs matplotlib.
+
 ## Which method should I use?
 
 - **`cits.methods.cits_full` (base CITS)** — the reference algorithm with the
@@ -252,23 +284,46 @@ Distributed Systems*, 31(3), 530-542.
 
 ## What you'll see / troubleshooting
 
-- **Backend notice.** The first Version-B run in a process prints one line to
-  stderr saying which backend it chose and why:
+- **Backend notice.** The first Version-B run in a process emits one line
+  (via the `cits` logger; stderr by default) saying which backend it chose
+  and why:
   - `cits: using cuPC GPU backend.` — `backend='auto'` found a working cuPC.
   - `cits: cuPC not found; using the CPU backend (fine up to ~100 variables;
     see README 'GPU setup' to enable GPU acceleration).` — `auto` fell back
-    to CPU.
-  - For explicit `backend='cpu'` above ~100 variables:
-    `cits: running Version B on CPU with p=NN variables; the cuPC GPU backend
-    is recommended above ~100 variables for speed (see README).`
+    to CPU (small graph).
+  - For a CPU run above ~100 variables (explicit `backend='cpu'`, or `auto`
+    with no cuPC): `cits: Version B on CPU with p=NN variables may be slow;
+    the CPU skeleton search scales steeply with p. In our scaling benchmark
+    the cuPC GPU backend inferred p=1000-variable graphs in ~33 s. The GPU
+    backend is recommended above ~100 variables (see README).`
 
-  It prints at most once per process. Silence all such info notices with
+  It prints at most once per process. Silence such info notices with
   `export CITS_QUIET=1` (warnings still show).
+
+- **Controlling verbosity (logging).** All messages route through the standard
+  logger `logging.getLogger('cits')`. Raise its level to quiet things down or
+  add your own handler to capture them:
+
+  ```python
+  import logging
+  logging.getLogger('cits').setLevel(logging.WARNING)  # hide info notices
+  logging.getLogger('cits').setLevel(logging.ERROR)    # hide warnings too
+  ```
+
+  By default (no logging configured) notices and warnings appear on stderr.
 
 - **CPU vs GPU guidance.** The CPU backend works everywhere and is fine for
   small-to-moderate graphs. Above ~100 variables (a practical guideline, not
-  a hard rule) the cuPC GPU backend is much faster. `backend='auto'` picks
-  cuPC when available.
+  a hard rule; the CPU skeleton search scales steeply with p) the cuPC GPU
+  backend is much faster — the paper's scaling benchmark inferred
+  p=1000-variable graphs in ~33 s on cuPC. `backend='auto'` picks cuPC when
+  available.
+
+- **Input validation.** `cits_full`, `cits_gpu`, and `cits_versionb` check X
+  up front: X must be 2D `(p variables, T timepoints)`; NaN/inf raises a clear
+  error; a transposed-looking array (p > T) warns; constant/all-zero variable
+  rows warn with the offending indices (partial correlation is undefined on
+  constant series).
 
 - **cuPC call failed at runtime.** If cuPC loads but the GPU call errors
   (driver / CUDA mismatch, no visible GPU, out of memory):
@@ -303,7 +358,14 @@ Your help is absolutely welcome! Please do reach out or create a future branch!
 
 ## Citation
 
-Biswas, R., Sripada, S., Mukherjee, S. & Abbasi-Asl, R. (2025) CITS: Nonparametric Statistical Causal Modeling for High-Resolution Neural Time Series. In Review. [https://arxiv.org/abs/2508.01920](https://arxiv.org/abs/2508.01920)
+If you use CITS, please cite the paper:
 
-A citeable Zenodo DOI for the software will accompany the tagged release:
-`DOI: <to be assigned on release>`.
+Biswas, R., Sripada, S., Mukherjee, S. & Abbasi-Asl, R. CITS: Nonparametric Statistical Causal Modeling for High-Resolution Neural Time Series. arXiv:2508.01920. [https://arxiv.org/abs/2508.01920](https://arxiv.org/abs/2508.01920)
+
+The citation will be finalized upon publication; please check this section (or
+the arXiv page) for the up-to-date reference before citing. `cits.cite()`
+prints this pointer. A citeable Zenodo DOI for the software will accompany the
+tagged release: `DOI: <to be assigned on release>`.
+
+The GPU backend uses cuPC (Zarebavani et al. 2020); see "GPU setup (cuPC)" for
+its separate citation and license.
