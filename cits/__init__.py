@@ -18,6 +18,20 @@ __version__ = "1.5.0"
 
 from . import methods, simulate_timeseries
 
+# cuPC directory helper. Pure-Python (no GPU needed to import); lets
+# notebook / non-interactive users set and persist the cuPC location
+# programmatically, bypassing the interactive prompt.
+try:
+    from ._cupc_wrapper import set_cupc_dir
+except Exception as _set_cupc_err:  # pragma: no cover - env dependent
+    _set_cupc_dir_err = _set_cupc_err
+
+    def set_cupc_dir(path):
+        raise ImportError(
+            "cits.set_cupc_dir is unavailable because cits._cupc_wrapper "
+            f"failed to import. Original import error: {_set_cupc_dir_err!r}"
+        ) from _set_cupc_dir_err
+
 # GPU and Version-B entry points. Import failures (e.g. missing optional
 # dependencies) must not break `import cits` or the base CPU algorithm, so
 # each is wrapped: if the import fails, the public name is replaced by a
@@ -56,4 +70,5 @@ __all__ = [
     "simulate_timeseries",
     "cits_gpu",
     "cits_versionb",
+    "set_cupc_dir",
 ]

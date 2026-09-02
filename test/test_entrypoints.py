@@ -66,6 +66,20 @@ def test_versionb_entrypoint_importable():
     assert callable(cits.cits_versionb)
 
 
+def test_set_cupc_dir_exported():
+    import cits
+    assert callable(cits.set_cupc_dir)
+    assert "set_cupc_dir" in cits.__all__
+
+
+def test_set_cupc_dir_rejects_dir_without_skeleton(tmp_path):
+    """set_cupc_dir must validate that Skeleton.so is present (no GPU needed)."""
+    import cits
+    with pytest.raises(FileNotFoundError) as excinfo:
+        cits.set_cupc_dir(str(tmp_path))
+    assert "Skeleton.so" in str(excinfo.value)
+
+
 # ---------------------------------------------------------------------------
 #  Base CITS runs on CPU
 # ---------------------------------------------------------------------------

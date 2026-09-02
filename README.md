@@ -81,9 +81,12 @@ on a machine where cuPC is unavailable.
 ## GPU setup (cuPC)
 
 The GPU and Version-B entry points call [cuPC](https://github.com/LIS-Laboratory/cupc)
-(Zarebavani et al. 2020) for the Fisher-z skeleton search. cuPC's compiled
-shared library `Skeleton.so` is **not bundled** with this package: it is a
-GPU/CUDA build and is licensed separately under cuPC's own GPL-3.0 license.
+(Zarebavani et al. 2020) for the Fisher-z skeleton search. cuPC is a
+**required external dependency for the GPU and Version-B modes** (base CITS
+does not need it). Its compiled shared library `Skeleton.so` is a GPU/CUDA
+build, is not on PyPI, and is licensed separately under cuPC's own GPL-3.0
+license, so it is **not bundled** with this package and is **not** in
+`install_requires`.
 
 You need a CUDA-capable GPU and the CUDA toolkit (`nvcc`). Build `Skeleton.so`
 once from the cuPC source:
@@ -94,15 +97,38 @@ cd cupc
 nvcc -O3 --shared -Xcompiler -fPIC -o Skeleton.so cuPC-S.cu
 ```
 
-Then point the package at that directory via the `CUPC_DIR` environment
-variable:
+### How the package finds `Skeleton.so`
+
+The first time you call `cits_gpu` or `cits_versionb`, the package resolves
+the cuPC directory (once per process) using the first location that actually
+contains `Skeleton.so`:
+
+1. The `CUPC_DIR` environment variable.
+2. A persisted config file, `${XDG_CONFIG_HOME:-~/.config}/cits/cupc_dir`.
+3. Candidate defaults: `~/repos/cupc`, `<package_dir>/external/cupc`,
+   `./cupc`, `./repos/cupc`.
+4. If still not found and you are on an interactive terminal, the package
+   **asks once**: `Enter path to your cuPC directory (must contain
+   Skeleton.so):`. A valid answer is remembered in the config file (step 2),
+   so you are not asked again on future runs.
+5. If still not found and the session is non-interactive (e.g. a notebook or
+   a batch job), a clear error explains what was tried and how to fix it.
+
+Set the location explicitly in either of these ways:
 
 ```
-export CUPC_DIR=/path/to/cupc
+export CUPC_DIR=/path/to/cupc          # environment variable
 ```
 
-If `CUPC_DIR` is unset, the package looks in `~/repos/cupc`. If `Skeleton.so`
-is not found, a clear error explains how to build it.
+```python
+import cits
+cits.set_cupc_dir("/path/to/cupc")     # validates and persists to the config file
+```
+
+`set_cupc_dir` is the recommended path for notebooks and other
+non-interactive environments, where the prompt is not shown. Discovery never
+runs at `import cits` time, so `import cits` and base CITS always work with no
+cuPC present.
 
 **Citation for cuPC** (`zarebavani2020cupc`): Zarebavani, B., Jafarinejad, F.,
 Hashemi, M. & Salehkaleybar, S. (2020). cuPC: CUDA-based Parallel PC Algorithm
