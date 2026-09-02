@@ -1,5 +1,25 @@
 # Changelog
 
+## v1.8.2
+
+- **`plot_matrix` matches the paper's Neuropixels adjacency style.** Now uses
+  `matshow` with a diverging colormap (default `'bwr'`) and a ROBUST SYMMETRIC
+  color scale by default: `vmax` is a high percentile (default 98th) of the
+  |nonzero off-diagonal weights| and `vmin = -vmax`, so faint edges stay
+  visible while a few strong outliers saturate (the old raw min/max autoscale
+  washed everything out). New kwargs `vmin`, `vmax`, `cmap`,
+  `robust_percentile`, `group_colors`; passing `vmin=-0.1, vmax=0.1`
+  reproduces the paper's fixed scale. When `groups` is given, colored group
+  side-strips are drawn along the top and left edges (same per-group colors as
+  `plot_graph`) plus subtle separator lines. NaN cells are masked to neutral
+  gray and excluded from the scale.
+- **`plot_graph` handles an arbitrary number of groups.** Up to 6 groups keep
+  the per-group hue-family shading; beyond that each group gets a distinct
+  solid color from an extended qualitative colorblind-safe palette (no hard
+  cap). Single-member groups get a solid color. Documented the many-groups
+  guideline (~ up to 10-12 for legibility; pass `group_colors` for full
+  control).
+
 ## v1.8.1
 
 - **`plot_graph` rewritten to match the paper's causal-graph aesthetic**

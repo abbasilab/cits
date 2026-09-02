@@ -11,8 +11,10 @@ paper's figures.
                           drawn as curved arcs with arrowheads placed partway
                           along the arc (bidirectional pairs get one head near
                           each end).
-  plot_matrix(A, ...)  -- adjacency heatmap, diverging colormap for signed
-                          weights, optional subtle group separators.
+  plot_matrix(A, ...)  -- adjacency heatmap in the paper's Neuropixels style
+                          (matshow, diverging 'bwr'), with a ROBUST symmetric
+                          color scale by default, optional group side-strips,
+                          and subtle group separators.
 
 matplotlib is an OPTIONAL dependency (extras_require['viz']). It (and
 networkx) are imported lazily inside the functions, so ``import cits`` and the
@@ -134,14 +136,32 @@ def _grouped_cluster_positions(gvals, min_spacing, base_cluster_radius):
     return pos
 
 
-def _node_colors(gvals, group_colors, plt):
-    """Per-node colors (one hue family per group, shaded 0.3->0.9 within group)
-    and a {group: representative_color} legend map.
+# Extended qualitative colorblind-safe palette (Okabe-Ito + distinct extras),
+# used to give each group a distinct SOLID color when there are more groups
+# than hue families.
+_QUALITATIVE = _OKABE_ITO + [
+    "#8C564B", "#17BECF", "#BCBD22", "#9467BD",
+    "#7F7F7F", "#1F77B4", "#FF7F0E", "#2CA02C",
+    "#E377C2", "#AEC7E8", "#98DF8A", "#C5B0D5",
+]
 
-    group_colors : optional {group_label: color} override -> solid color for
-    all members of that group."""
+
+def _node_colors(gvals, group_colors, plt):
+    """Per-node colors and a {group: representative_color} legend map.
+
+    Coloring strategy:
+      - No grouping at all -> a single neutral hue.
+      - Up to len(_base_colormaps) groups -> one hue FAMILY per group, members
+        shaded 0.3->0.9 within the family (single-member groups get a solid
+        mid shade).
+      - More groups than families -> each group gets a distinct SOLID color
+        from an extended qualitative colorblind-safe palette (no hard cap).
+      - `group_colors` (optional {group_label: color}) always overrides a
+        group's color with a solid color.
+    """
     order, members = _ordered_groups(gvals)
     cmaps = _base_colormaps(plt)
+    use_families = len(order) <= len(cmaps)
     colors = [None] * len(gvals)
     legend = {}
     for k, g in enumerate(order):
@@ -159,11 +179,18 @@ def _node_colors(gvals, group_colors, plt):
                 colors[idx] = col
             legend[g] = col
             continue
-        cmap = cmaps[k % len(cmaps)]
-        shades = [0.6] if n == 1 else list(np.linspace(0.3, 0.9, n))
-        for idx, s in zip(idxs, shades):
-            colors[idx] = cmap(float(s))
-        legend[g] = cmap(0.6)
+        if use_families:
+            cmap = cmaps[k % len(cmaps)]
+            shades = [0.6] if n == 1 else list(np.linspace(0.3, 0.9, n))
+            for idx, s in zip(idxs, shades):
+                colors[idx] = cmap(float(s))
+            legend[g] = cmap(0.6)
+        else:
+            # Many groups: one distinct solid color per group.
+            col = _QUALITATIVE[k % len(_QUALITATIVE)]
+            for idx in idxs:
+                colors[idx] = col
+            legend[g] = col
     return colors, legend
 
 
@@ -212,7 +239,11 @@ def plot_graph(A, labels=None, groups=None, ax=None, layout="auto",
     groups : dict or array, optional
         Node -> group mapping (dict keyed by node index, or a length-p array).
         Drives the clustered layout and per-group node coloring, and adds a
-        legend outside the axes.
+        legend outside the axes. Grouping is optional and most legible for a
+        modest number of groups (guideline ~ up to 10-12). Up to 6 groups get
+        one shaded hue family each; beyond that, each group gets a distinct
+        solid color from an extended qualitative palette. There is no hard
+        limit; for full control over many groups pass `group_colors`.
     ax : matplotlib Axes, optional
         Axes to draw into. Created if omitted.
     layout : str
@@ -407,23 +438,46 @@ def plot_graph(A, labels=None, groups=None, ax=None, layout="auto",
 #  plot_matrix
 # --------------------------------------------------------------------------
 
-def plot_matrix(A, labels=None, groups=None, ax=None, title=None):
-    """Adjacency heatmap.
+def plot_matrix(A, labels=None, groups=None, ax=None, vmin=None, vmax=None,
+                cmap=None, robust_percentile=98, group_colors=None,
+                title=None):
+    """Adjacency heatmap in the paper's Neuropixels style (matshow, diverging).
 
-    Diverging colormap centered at 0 for signed weights; sequential for
-    all-nonnegative input. Optional subtle group separator lines when `groups`
-    is given (assumes nodes are ordered by group). NaN entries are shown as a
-    neutral 'no weight' color. The colorbar is given its own space so it does
-    not overlap the matrix.
+    By default the color scale is a ROBUST SYMMETRIC diverging scale: `vmax` is
+    a high percentile of the |nonzero off-diagonal weights| (ignoring NaN and
+    the diagonal) and `vmin = -vmax`, so faint edges stay visible while a few
+    strong outliers saturate instead of washing everything else out. Pass
+    explicit `vmin`/`vmax` to override (e.g. `vmin=-0.1, vmax=0.1` reproduces
+    the paper's fixed scale).
+
+    When `groups` is given, thin colored side-strips along the top and left
+    edges indicate each node's group (same per-group colors as `plot_graph`),
+    with subtle separator lines between groups.
 
     Parameters
     ----------
     A : array_like, shape (p, p)
+        Adjacency (signed weights or binary). Row = source/parent, column =
+        target/child. NaN cells are masked to a neutral gray and excluded from
+        the color scale.
     labels : sequence of str, optional
+        Node tick labels (length p).
     groups : dict or array, optional
-        Node -> group mapping; a subtle separator line is drawn where the
-        group changes between consecutive node indices.
+        Node -> group mapping (dict keyed by node index, or a length-p array).
+        Adds group side-strips and separator lines. Assumes nodes are ordered
+        by group for contiguous strips/separators.
     ax : matplotlib Axes, optional
+    vmin, vmax : float, optional
+        Explicit color limits. If given they win over the robust scale (pass
+        both, e.g. -0.1/0.1, to reproduce the paper's fixed scale). If only one
+        is given the scale is made symmetric from it.
+    cmap : str or Colormap, optional
+        Colormap (default 'bwr', matching the paper).
+    robust_percentile : float
+        Percentile of |nonzero off-diagonal weights| used for the default
+        symmetric `vmax` (default 98).
+    group_colors : dict, optional
+        {group_label: color} override for the side-strip colors.
     title : str, optional
 
     Returns
@@ -440,22 +494,31 @@ def plot_matrix(A, labels=None, groups=None, ax=None, title=None):
     if ax is None:
         _fig, ax = plt.subplots(figsize=(6.2, 5.2))
 
-    finite = A[np.isfinite(A)]
-    has_neg = finite.size > 0 and (finite < 0).any()
-    if has_neg:
-        vmax = float(np.abs(finite).max()) or 1.0
-        vmin, cmap = -vmax, plt.get_cmap("RdBu_r").copy()
-    else:
-        vmax = (float(finite.max()) if finite.size else 1.0) or 1.0
-        vmin, cmap = 0.0, plt.get_cmap("Reds").copy()
-    cmap.set_bad(color="#f2f2f2")  # NaN cells
+    # Robust symmetric scale from |nonzero off-diagonal finite weights|.
+    off = ~np.eye(p, dtype=bool)
+    vals = A[off]
+    vals = np.abs(vals[np.isfinite(vals) & (vals != 0)])
+    if vmax is None and vmin is None:
+        if vals.size:
+            vmax_r = float(np.percentile(vals, robust_percentile))
+        else:
+            vmax_r = 1.0
+        vmax_r = vmax_r or 1.0
+        vmin, vmax = -vmax_r, vmax_r
+    elif vmax is None:
+        vmax = -float(vmin)          # symmetric from the given vmin
+    elif vmin is None:
+        vmin = -float(vmax)          # symmetric from the given vmax
+
+    cm = plt.get_cmap(cmap if cmap is not None else "bwr").copy()
+    cm.set_bad(color="#f2f2f2")      # NaN cells -> neutral gray
 
     masked = np.ma.masked_invalid(A)
-    im = ax.imshow(masked, cmap=cmap, vmin=vmin, vmax=vmax,
-                   interpolation="nearest", aspect="equal")
+    im = ax.matshow(masked, cmap=cm, vmin=vmin, vmax=vmax)
     cbar = ax.figure.colorbar(im, ax=ax, fraction=0.046, pad=0.04)
     cbar.ax.tick_params(labelsize=8)
 
+    # Axis labels: parent (row) -> child (col); keep tick labels readable.
     if labels is not None:
         ax.set_xticks(range(p))
         ax.set_yticks(range(p))
@@ -464,16 +527,35 @@ def plot_matrix(A, labels=None, groups=None, ax=None, title=None):
     else:
         ax.set_xticks([])
         ax.set_yticks([])
+    ax.xaxis.set_ticks_position("bottom")
     ax.set_xlabel("target (child)")
     ax.set_ylabel("source (parent)")
 
     if groups is not None:
         gvals = _group_values(groups, p)
+        strip_colors, _legend = _node_colors(gvals, group_colors, plt)
+        from matplotlib.patches import Rectangle
+        strip = max(0.6, p * 0.02)   # side-strip thickness in cell units
+        gap = 0.15
+        for i in range(p):
+            col = strip_colors[i] if strip_colors[i] is not None else "#cccccc"
+            # top strip (above row 0): spans column i
+            ax.add_patch(Rectangle((i - 0.5, -(strip + gap)), 1.0, strip,
+                                    facecolor=col, edgecolor="none",
+                                    clip_on=False, zorder=3))
+            # left strip: spans row i
+            ax.add_patch(Rectangle((-(strip + gap), i - 0.5), strip, 1.0,
+                                    facecolor=col, edgecolor="none",
+                                    clip_on=False, zorder=3))
+        # subtle separators where the group changes
         for k in range(p - 1):
             if gvals[k] != gvals[k + 1]:
                 ax.axhline(k + 0.5, color="#999999", linewidth=0.6)
                 ax.axvline(k + 0.5, color="#999999", linewidth=0.6)
+        # widen limits so the side-strips are visible
+        ax.set_xlim(-(strip + gap) - 0.2, p - 0.5)
+        ax.set_ylim(p - 0.5, -(strip + gap) - 0.2)  # matshow y is inverted
 
     if title:
-        ax.set_title(title)
+        ax.set_title(title, pad=10)
     return ax

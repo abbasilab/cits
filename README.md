@@ -154,22 +154,41 @@ B = cits.run(X, 'versionb', backend='cpu')            # -> cits_versionb
 ### Plotting (optional)
 
 With the `viz` extra installed (`pip install cits[viz]`), draw the graph or
-its adjacency in the paper's style:
+its adjacency in the paper's style. Grouping is optional:
 
 ```python
 import matplotlib.pyplot as plt
-groups = {0: 'src', 1: 'src', 2: 'mid', 3: 'sink'}
-cits.plot_graph(B, labels=['a','b','c','d'], groups=groups, title='causal graph')
-cits.plot_matrix(B, labels=['a','b','c','d'], groups=groups, title='adjacency')
+
+# Basic: just pass the adjacency.
+cits.plot_graph(B)
+cits.plot_matrix(B)
 plt.show()
 ```
 
-`plot_graph` draws directed edges as arrows, reciprocal pairs as a single
-double-headed edge, edge width proportional to |weight|, and colors nodes by
-`groups` (colorblind-safe palette). `plot_matrix` is a diverging heatmap for
-signed weights with optional group separators. Both raise a clear error
-telling you to `pip install cits[viz]` if matplotlib is missing; `import cits`
-never needs matplotlib.
+If you have node labels/groups (e.g. brain regions, cell types), pass `groups`
+for a clustered layout, per-group colors, side-strips, and a legend:
+
+```python
+groups = {0: 'src', 1: 'src', 2: 'mid', 3: 'sink'}
+cits.plot_graph(B, labels=['a','b','c','d'], groups=groups)
+cits.plot_matrix(B, labels=['a','b','c','d'], groups=groups)
+plt.savefig('graph.png', bbox_inches='tight')   # legend sits outside the axes
+```
+
+`plot_graph` draws directed edges as curved arcs, reciprocal pairs as a single
+double-headed arc, edge width proportional to |weight|, and (with `groups`)
+lays nodes out in per-group clusters colored by group. `plot_matrix` renders
+the adjacency as a `matshow` heatmap (diverging `bwr`) with a robust symmetric
+color scale by default (a high percentile of |weights|, so faint edges stay
+visible; pass `vmin=-0.1, vmax=0.1` for a fixed scale) and group side-strips
+when `groups` is given. Both raise a clear error telling you to
+`pip install cits[viz]` if matplotlib is missing; `import cits` never needs
+matplotlib.
+
+Grouping is most legible for a modest number of groups (guideline ~ up to
+10-12). Up to 6 groups get a shaded hue family each; beyond that, each group
+gets a distinct solid color. There is no hard limit; for full control over
+many groups pass `group_colors={label: color}`.
 
 ## Which method should I use?
 

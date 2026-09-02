@@ -26,7 +26,7 @@ Logging: messages go through ``logging.getLogger('cits')``. Set its level to
 control verbosity; ``CITS_QUIET=1`` silences informational notices.
 """
 
-__version__ = "1.8.1"
+__version__ = "1.8.2"
 
 from . import methods, simulate_timeseries
 
