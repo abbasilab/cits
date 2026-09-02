@@ -1,5 +1,28 @@
 # Changelog
 
+## v1.8.1
+
+- **`plot_graph` rewritten to match the paper's causal-graph aesthetic**
+  (ports the layout/arc logic of `regen_cfc_stimtypes.py`, kept general for
+  arbitrary group labels):
+  - Grouped-cluster layout when `groups` is given: group centroids evenly
+    spaced around a ring, members in a small sub-cluster around each centroid
+    (falls back to circular/spring with no groups).
+  - One colorblind-safe hue family per group (Oranges, a teal gradient,
+    Purples, Greens, Blues, Greys), shaded 0.3->0.9 within each group; new
+    `group_colors` kwarg overrides a group's color.
+  - Curved quadratic-Bezier arcs with arrowheads placed partway along the arc;
+    bidirectional pairs drawn as a single arc with one head near each end;
+    small self-loops. Edge width interpolated over `edge_width_range`; neutral
+    dark-gray edges by default with an opt-in `sign_color`.
+  - Legend placed OUTSIDE the axes (no overlap with nodes); equal aspect, axis
+    off. Save with `bbox_inches='tight'`.
+  - New/changed kwargs: `layout` gains `'auto'` (default) and `'grouped'`;
+    added `group_colors`, `sign_color`, `edge_color`, `edge_width_range`,
+    `node_size`, `min_spacing`, `base_cluster_radius`.
+- **`plot_matrix`**: colorbar given its own space; group separators made
+  subtle (thin light-gray lines).
+
 ## v1.8
 
 Usability pass: plotting, input validation, logging, a unified dispatch
