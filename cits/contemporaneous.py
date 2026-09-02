@@ -30,9 +30,13 @@ Pipeline (per trial), given X of shape (p, T):
      undirected contemp edges get a local-IDA conservative signed value (or
      NaN when sign-ambiguous).
 
-Requires a compiled cuPC ``Skeleton.so`` and a CUDA-capable GPU (both the
-lagged skeleton and the contemp PC skeleton run through cuPC). See
-``cits._cupc_wrapper`` and the README "GPU setup (cuPC)" section.
+Backends. Both the lagged skeleton and the contemp PC skeleton run through
+the same neighbor-restricted PC-stable algorithm, available two ways:
+  - CPU: pure numpy, works everywhere with no native dependency.
+  - cuPC: GPU-accelerated, recommended above ~100 variables for speed (needs
+    a compiled Skeleton.so and a CUDA GPU; see the README "GPU setup" note).
+Both backends produce the same skeleton. ``backend='auto'`` (default) uses
+cuPC when a working Skeleton.so is found, otherwise CPU.
 
 Output convention for the signed weighted adjacency B:
     B[parent, child] = signed OLS beta   -- identifiable directed/undirected edge
@@ -44,9 +48,10 @@ weight": exclude from weighted analyses, include in skeleton-only analyses.
 """
 
 from __future__ import annotations
+import sys
 import numpy as np
 
-from .gpu import cits_gpu
+from .gpu import _lag_rolled_from_skeleton
 from ._pc_raw import pc_skeleton_raw
 from ._pc_orientation import (
     orient_v_structures,
@@ -56,24 +61,73 @@ from ._pc_orientation import (
 from ._union_cpdag import build_union
 from ._lscm_refit import lscm_refit_cpdag, ols_beta_for_child
 
+# One-time CPU-at-scale recommendation (per process).
+_CPU_RECO_SHOWN = False
 
-def cits_versionb(X, alpha: float = 0.05, tau: int = 1,
+# Above this many variables, the cuPC GPU backend is recommended for speed.
+# Practical guideline, not a hard rule -- benchmark your own setup.
+_LARGE_P_THRESHOLD = 100
+
+
+def _resolve_backend(backend):
+    """Map backend spec ('auto'/'cpu'/'cupc') to the concrete skeleton fn and
+    the pc_skeleton_raw backend string. Returns (skeleton_fn, raw_backend,
+    is_cpu)."""
+    if backend not in ('auto', 'cpu', 'cupc'):
+        raise ValueError(
+            f"unknown backend {backend!r}; expected 'auto', 'cpu', or 'cupc'")
+
+    if backend == 'cpu':
+        from ._pc_skeleton_cpu import pc_skeleton_cpu
+        return pc_skeleton_cpu, 'cpu', True
+
+    if backend == 'cupc':
+        # Force GPU; surface a clear error now if cuPC is unavailable.
+        from ._cupc_wrapper import pc_skeleton_cupc, _get_lib
+        _get_lib()  # raises the actionable FileNotFoundError if not found
+        return pc_skeleton_cupc, 'cupc', False
+
+    # backend == 'auto'
+    from ._cupc_wrapper import is_cupc_available
+    if is_cupc_available():
+        from ._cupc_wrapper import pc_skeleton_cupc
+        return pc_skeleton_cupc, 'cupc', False
+    from ._pc_skeleton_cpu import pc_skeleton_cpu
+    return pc_skeleton_cpu, 'cpu', True
+
+
+def cits_versionb(X, alpha: float = 0.05, tau: int = 1, backend: str = 'auto',
                   use_meek: bool = False, full_output: bool = False,
                   verbose: bool = False):
     """Contemporaneous / Version-B CITS: signed weighted adjacency over the
     union of lagged (CITS) and contemporaneous (PC) causal structure.
 
+    This is the pipeline used for the paper's neural analyses. Unlike base
+    CITS and ``cits_gpu`` (lagged edges only), Version B also recovers
+    contemporaneous (within-time-slice) edges and assigns signed structural
+    (LSCM) edge weights.
+
     Parameters
     ----------
     X : np.ndarray, shape (p, T)
         Time series, p variables (neurons) by T time points. Same input
-        convention as ``cits.methods.cits_full`` and ``cits.gpu.cits_gpu``.
+        convention as ``cits.methods.cits_full`` and ``cits.cits_gpu``.
     alpha : float
         Significance level shared by the lagged skeleton and the contemp PC
         conditional-independence tests. Default 0.05 (paper default).
     tau : int
-        CITS Markovian order / lag. Default 1 (paper default). The union
-        step currently supports tau=1 only.
+        CITS Markovian order / maximum lag. Default 1 (paper default). The
+        union step currently supports tau=1 only.
+    backend : str
+        Skeleton backend for both the lagged and contemporaneous PC steps:
+          'auto'  (default) -- use cuPC (GPU) if a working Skeleton.so is
+                    found, otherwise fall back to the pure-numpy CPU skeleton.
+          'cpu'   -- force the CPU skeleton (no GPU needed). Recommended for
+                    small-to-moderate graphs; above ~100 variables the run
+                    prints a one-time note recommending the cuPC backend.
+          'cupc'  -- force the GPU skeleton; raises a clear error if cuPC is
+                    unavailable.
+        Both backends implement the same algorithm and give the same skeleton.
     use_meek : bool
         If False (default), orient the contemp skeleton with v-structures
         only (no Meek propagation) -- the paper's Version-B-safe orientation.
@@ -87,8 +141,9 @@ def cits_versionb(X, alpha: float = 0.05, tau: int = 1,
     Returns
     -------
     B : np.ndarray, shape (p, p), float   (when full_output=False)
-        Signed weighted adjacency (see module docstring for the
-        beta / 0 / NaN convention).
+        Signed weighted adjacency. B[parent, child] = signed OLS beta for an
+        identifiable edge; 0 = non-edge; NaN = skeleton-only edge (edge
+        present but sign-ambiguous, so no causal weight).
     result : dict                          (when full_output=True)
         'weighted'       : (p, p) float signed weighted adjacency (as above)
         'skeleton'       : (p, p) int8 union skeleton presence (directed+undirected)
@@ -97,23 +152,34 @@ def cits_versionb(X, alpha: float = 0.05, tau: int = 1,
                             3 undirected PC-contemp IDA-identifiable,
                             4 undirected PC-contemp sign-ambiguous)
         'sign_ambiguous' : (p, p) bool IDA sign-ambiguity mask
-        'lagged'         : (p, p) int rolled lagged adjacency from cits_gpu
+        'lagged'         : (p, p) int rolled lagged adjacency
         'cpdag'          : (p, p) int contemp PC CPDAG
     """
+    global _CPU_RECO_SHOWN
     X = np.asarray(X, dtype=np.float64)
     if X.ndim != 2:
         raise ValueError(f"X must be 2D (p, T); got shape {X.shape}")
     p, T = X.shape
 
-    # ---- 1. Lagged skeleton (rolled binary adjacency) via GPU cuPC ----
-    cits_lagged_B = cits_gpu(X, alpha=alpha, tau=tau, verbose=verbose)
+    skeleton_fn, raw_backend, is_cpu = _resolve_backend(backend)
+
+    if is_cpu and p > _LARGE_P_THRESHOLD and not _CPU_RECO_SHOWN:
+        print(f"cits: running Version B on CPU with p={p} variables; the "
+              f"cuPC GPU backend is recommended above ~{_LARGE_P_THRESHOLD} "
+              f"variables for speed (see README).", file=sys.stderr,
+              flush=True)
+        _CPU_RECO_SHOWN = True
+
+    # ---- 1. Lagged skeleton (rolled binary adjacency) ----
+    cits_lagged_B = _lag_rolled_from_skeleton(
+        X, skeleton_fn, alpha=alpha, tau=tau, verbose=verbose)
 
     # LSCM refit and PC skeleton use (T, p) orientation.
     X_Tp = np.ascontiguousarray(X.T)
 
     # ---- 2. Contemporaneous PC skeleton ----
     pc_skel, _pc_r0, sep_sets, _inactive = pc_skeleton_raw(
-        X_Tp, alpha=alpha, tau=tau, verbose=verbose)
+        X_Tp, alpha=alpha, tau=tau, backend=raw_backend, verbose=verbose)
 
     # ---- 3. Orient contemp skeleton (v-structures; optional Meek) ----
     if use_meek:

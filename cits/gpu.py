@@ -52,35 +52,22 @@ def _build_chi_nonoverlap(X: np.ndarray, tau: int) -> np.ndarray:
     return U
 
 
-def cits_gpu(X: np.ndarray, alpha: float = 0.05, tau: int = 1,
-             max_level: int = 14, verbose: bool = False) -> np.ndarray:
-    """Faithful scalable CITS-lag (rolled adjacency), Fisher-z via cuPC (GPU).
+def _lag_rolled_from_skeleton(X, skeleton_fn, alpha=0.05, tau=1,
+                              max_level=14, verbose=False):
+    """Faithful scalable CITS-lag rolled adjacency, using an arbitrary
+    neighbor-restricted PC skeleton backend.
 
-    Parameters
-    ----------
-    X : np.ndarray, shape (p, T)
-        Time series, p variables (neurons) by T time points. Same input
-        convention as ``cits.methods.cits_full``.
-    alpha : float
-        Significance level for the Fisher-z partial-correlation test.
-    tau : int
-        CITS Markovian order / lag. Default 1 (paper default).
-    max_level : int
-        Max conditioning-set size passed to cuPC (compiled cap ML=14).
-    verbose : bool
-
-    Returns
-    -------
-    B : np.ndarray, shape (p, p), int
-        Rolled lagged adjacency. B[i, j] = 1 iff neuron i (at a past lag)
-        is inferred to be a causal parent of neuron j at the present slice.
-        Same contract as the source ``gpu_cits_lag_cupc_faithful``.
+    ``skeleton_fn`` runs the skeleton on the non-overlapping chi-window and
+    returns ``(G_unrolled, sep_sets, inactive, level)`` -- either
+    ``cits._cupc_wrapper.pc_skeleton_cupc`` (GPU) or
+    ``cits._pc_skeleton_cpu.pc_skeleton_cpu`` (CPU). Both implement the same
+    neighbor-restricted PC-stable algorithm, so the extracted rolled
+    adjacency is backend-independent.
     """
     p, T = X.shape
-    w = 2 * (tau + 1)
     U = _build_chi_nonoverlap(X, tau)             # (N, p*w), c = t*p + v
 
-    G_unrolled, _sep, _inactive, _lvl = pc_skeleton_cupc(
+    G_unrolled, _sep, _inactive, _lvl = skeleton_fn(
         U, alpha=alpha, max_level=max_level, verbose=verbose)
 
     # Targeted extraction: edges (v1, t1) -> (v2, t_target) into the present
@@ -96,6 +83,46 @@ def cits_gpu(X: np.ndarray, alpha: float = 0.05, tau: int = 1,
                     B[v1, v2] = 1
                     break
     return B
+
+
+def cits_gpu(X: np.ndarray, alpha: float = 0.05, tau: int = 1,
+             max_level: int = 14, verbose: bool = False) -> np.ndarray:
+    """Faithful scalable CITS-lag (rolled adjacency), Fisher-z via cuPC (GPU).
+
+    GPU accelerator for the lagged CITS skeleton. It matches base CITS
+    (``cits.methods.cits_full`` with the Gaussian partial-correlation test)
+    except that the exponential powerset conditioning search is replaced by
+    cuPC's neighbor-restricted PC-stable search on the GPU, which is sound
+    under the faithfulness assumption CITS already requires. Scales to on the
+    order of 1000 variables. Requires a compiled cuPC ``Skeleton.so`` and a
+    CUDA-capable GPU (see the README "GPU setup (cuPC)" section).
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (p, T)
+        Time series, p variables (neurons) by T time points. Same input
+        convention as ``cits.methods.cits_full``.
+    alpha : float
+        Significance level for the Fisher-z partial-correlation test.
+        Default 0.05.
+    tau : int
+        CITS Markovian order / maximum lag. Default 1 (paper default).
+    max_level : int
+        Max conditioning-set size passed to cuPC (compiled cap ML=14).
+    verbose : bool
+
+    Returns
+    -------
+    B : np.ndarray, shape (p, p), int
+        Rolled lagged adjacency. B[i, j] = 1 iff variable i (at a past lag)
+        is inferred to be a causal parent of variable j at the present time
+        slice; 0 otherwise. Lagged (directed-in-time) edges only, no
+        contemporaneous structure. Same contract as the source
+        ``gpu_cits_lag_cupc_faithful``.
+    """
+    return _lag_rolled_from_skeleton(
+        X, pc_skeleton_cupc, alpha=alpha, tau=tau,
+        max_level=max_level, verbose=verbose)
 
 
 # Backwards-compatible alias matching the original source function name.

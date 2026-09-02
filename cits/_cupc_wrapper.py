@@ -184,7 +184,7 @@ def _prompt_for_dir(max_attempts=3):
     return None
 
 
-def _locate_cupc_dir(force=False):
+def _locate_cupc_dir(force=False, interactive=None):
     """Resolve the directory containing Skeleton.so, cached per process.
 
     Discovery order (first that actually contains Skeleton.so wins):
@@ -192,9 +192,13 @@ def _locate_cupc_dir(force=False):
       2. Persisted config file (${XDG_CONFIG_HOME:-~/.config}/cits/cupc_dir).
       3. Candidate defaults: ~/repos/cupc, <package_dir>/external/cupc,
          ./cupc, ./repos/cupc.
-      4. If still not found AND interactive (sys.stdin.isatty()): prompt the
-         user (up to 3 attempts); persist the answer on success.
+      4. If still not found AND interactive: prompt the user (up to 3
+         attempts); persist the answer on success.
       5. Otherwise raise an actionable FileNotFoundError.
+
+    `interactive` : None (default) auto-detects a tty via sys.stdin.isatty();
+    pass False to skip the prompt entirely (used by non-interactive backend
+    auto-detection, which must never block on input).
     """
     global _CUPC_DIR_CACHE
     if _CUPC_DIR_CACHE is not None and not force:
@@ -221,10 +225,11 @@ def _locate_cupc_dir(force=False):
             return cand
 
     # 4. Interactive prompt
-    try:
-        interactive = bool(sys.stdin) and sys.stdin.isatty()
-    except (AttributeError, ValueError):
-        interactive = False
+    if interactive is None:
+        try:
+            interactive = bool(sys.stdin) and sys.stdin.isatty()
+        except (AttributeError, ValueError):
+            interactive = False
     if interactive:
         prompted = _prompt_for_dir()
         if prompted is not None:
@@ -233,6 +238,24 @@ def _locate_cupc_dir(force=False):
 
     # 5. Give up with an actionable error
     raise _not_found_error()
+
+
+def is_cupc_available():
+    """Return True iff a working cuPC Skeleton.so can be located and loaded
+    WITHOUT prompting. Used for backend='auto' selection.
+
+    Resolution uses only the non-interactive discovery steps (env var,
+    config file, candidate defaults); it never prompts and never raises.
+    """
+    try:
+        _locate_cupc_dir(interactive=False)
+    except Exception:
+        return False
+    try:
+        _get_lib()
+        return True
+    except Exception:
+        return False
 
 
 def set_cupc_dir(path):

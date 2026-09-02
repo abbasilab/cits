@@ -1,5 +1,48 @@
 # Changelog
 
+## v1.6
+
+Makes the package usable on any machine with no author involvement: the GPU is
+now recommended (not required) for large graphs, and every mode has a
+pure-Python path.
+
+### Added
+
+- **CPU PC-stable skeleton (`cits._pc_skeleton_cpu.pc_skeleton_cpu`).** A
+  pure-numpy, neighbor-restricted, increasing-conditioning-size PC-stable
+  skeleton with a Fisher-z partial-correlation CI test (reuses the v1.4-fixed
+  `cits.methods.partial_corr`). It implements the SAME algorithm as cuPC
+  (NOT the exponential powerset conditioning of `cits_full`), so it recovers
+  the same skeleton as cuPC. Validated: on a toy graph the CPU and cuPC
+  skeletons are identical. Used for both the lagged unrolled-window skeleton
+  and the contemporaneous slice.
+- **`backend` argument on `cits_versionb`.** `'auto'` (new default) uses cuPC
+  if a working `Skeleton.so` is found, else the CPU skeleton; `'cpu'` forces
+  CPU; `'cupc'` forces GPU (clear error if unavailable). On the CPU path with
+  more than ~100 variables, a one-time recommendation to use the cuPC backend
+  is printed. `alpha=0.05`, `tau=1` defaults unchanged; `tau=1` remains the
+  only supported union order.
+- **`_pc_raw.pc_skeleton_raw` `backend='python'`/`'cpu'`** now runs the new
+  CPU skeleton (previously a `NotImplementedError` stub).
+
+### Changed
+
+- **cuPC is optional, recommended for large graphs (> ~100 variables), not
+  required.** `import cits`, base CITS, and `cits_versionb(backend='cpu')`
+  need nothing native. `cits_gpu` stays cuPC-only (it is the GPU accelerator).
+- **R / `kpcalg` is now an optional extra.** `rpy2` moved out of core
+  `install_requires` into `extras_require['hsic']` (`pip install cits[hsic]`);
+  R is imported lazily inside the HSIC test only, so the Gaussian
+  partial-correlation path works with just Python + numpy. (methods.py already
+  imported rpy2 lazily; no code change was needed there.)
+
+### Docs
+
+- README: runnable Quickstart via `cits.simulate_timeseries`; "Which method
+  should I use?" and "Choosing parameters" decision guides; cuPC reframed as
+  recommended-for-large-graphs; optional-R note; Zenodo DOI placeholder for
+  the tagged release.
+
 ## v1.5
 
 Two additional ways to run CITS, alongside the existing base (CPU) algorithm.

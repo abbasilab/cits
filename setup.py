@@ -3,7 +3,7 @@ import setuptools
 with open('README.md','r') as fh:
     README = fh.read()
 
-VERSION = "1.5.0"
+VERSION = "1.6.0"
 
 setuptools.setup(
     # Needed to silence warnings (and to be a worthwhile package)
@@ -13,7 +13,17 @@ setuptools.setup(
     description = 'CITS algorithm for inferring causality from time series data',
     long_description= README,
     long_description_content_type = 'text/markdown',
-    install_requires=['numpy','scipy','pandas','rpy2','networkx',],
+    # Core deps: base CITS, the CPU skeleton, GPU/Version-B wiring, and the
+    # weighted graph (networkx) all run on Python + these. rpy2/R is NOT a
+    # core requirement: it is needed only for the optional non-Gaussian HSIC
+    # conditional-independence test (extras_require['hsic']). cuPC is a
+    # compiled CUDA artifact (not on PyPI); see the README GPU setup section.
+    install_requires=['numpy','scipy','pandas','networkx',],
+    extras_require={
+        # Non-Gaussian HSIC CI test via R's kpcalg (also requires an R
+        # install with the kpcalg package; see README).
+        'hsic': ['rpy2'],
+    },
     url='https://github.com/biswasr/CITS',
     packages=setuptools.find_packages(),
     python_requires='>=3.6',

@@ -127,3 +127,51 @@ def test_gpu_call_raises_clearly_without_cupc():
         cits.cits_gpu(X, alpha=0.05, tau=1)
     msg = str(excinfo.value)
     assert "cuPC" in msg or "CUPC_DIR" in msg or "Skeleton.so" in msg
+
+
+# ---------------------------------------------------------------------------
+#  CPU backend: always runs, no GPU required
+# ---------------------------------------------------------------------------
+
+def test_cpu_skeleton_runs():
+    """Pure-numpy PC-stable skeleton runs with no GPU and returns a
+    symmetric (p, p) 0/1 adjacency."""
+    from cits._pc_skeleton_cpu import pc_skeleton_cpu
+    rng = np.random.default_rng(1)
+    U = rng.standard_normal((300, 6))
+    G, sep, inactive, level = pc_skeleton_cpu(U, alpha=0.05)
+    assert G.shape == (6, 6)
+    assert np.array_equal(G, G.T)
+    assert np.all(np.diag(G) == 0)
+
+
+def test_versionb_cpu_runs_without_gpu():
+    """cits_versionb(backend='cpu') returns a (p, p) result with no GPU."""
+    import cits
+    X = _toy_series()
+    B = cits.cits_versionb(X, alpha=0.05, tau=1, backend='cpu')
+    B = np.asarray(B)
+    assert B.shape == (X.shape[0], X.shape[0])
+
+
+def test_cpu_matches_cupc_skeleton():
+    """The CPU PC-stable skeleton must equal the cuPC skeleton on the same
+    data (skipped when cuPC is unavailable)."""
+    if not _cupc_available():
+        pytest.skip("cuPC (Skeleton.so) unavailable; equivalence not checked")
+    from cits._pc_skeleton_cpu import pc_skeleton_cpu
+    from cits._cupc_wrapper import pc_skeleton_cupc
+    from cits.gpu import _build_chi_nonoverlap
+    from cits import simulate_timeseries
+    X, _, _ = simulate_timeseries.simulate('lingauss1', noise=1.0, T=2000)
+    U = _build_chi_nonoverlap(X, tau=1)
+    G_cpu, _, _, _ = pc_skeleton_cpu(U, alpha=0.05)
+    G_gpu, _, _, _ = pc_skeleton_cupc(U, alpha=0.05)
+    assert np.array_equal(G_cpu, G_gpu)
+
+
+def test_versionb_bad_backend_raises():
+    import cits
+    X = _toy_series()
+    with pytest.raises(ValueError):
+        cits.cits_versionb(X, alpha=0.05, tau=1, backend='nonsense')

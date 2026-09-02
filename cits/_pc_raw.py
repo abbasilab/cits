@@ -155,16 +155,19 @@ def pc_skeleton_raw(X, alpha: float = 0.05, use_gpu: bool = True,
         R = np.corrcoef(chi_c)
         r_mat = np.where(A != 0, np.abs(R), 0.0)
         np.fill_diagonal(r_mat, 0.0)
-    elif backend == 'python':
-        # Original Python-loop implementation; not bundled with the package.
-        raise NotImplementedError(
-            "backend='python' (the Python-loop PC skeleton) is not bundled "
-            "with the cits package. Use backend='cupc' (the default), which "
-            "requires a compiled cuPC Skeleton.so (see cits._cupc_wrapper "
-            "and the README GPU setup section).")
+    elif backend in ('python', 'cpu'):
+        # Pure-numpy neighbor-restricted PC-stable skeleton (no GPU). Same
+        # algorithm as cuPC, so it yields the same skeleton. chi_c is (p, N);
+        # the CPU skeleton expects (N, p).
+        from ._pc_skeleton_cpu import pc_skeleton_cpu
+        A, sep_sets, _, _ = pc_skeleton_cpu(
+            chi_c.T, alpha=alpha, verbose=verbose)
+        R = np.corrcoef(chi_c)
+        r_mat = np.where(A != 0, np.abs(R), 0.0)
+        np.fill_diagonal(r_mat, 0.0)
     else:
         raise ValueError(f"unknown backend {backend!r}; "
-                         f"expected 'cupc' or 'python'")
+                         f"expected 'cupc', 'cpu', or 'python'")
 
     if inactive_neurons.size > 0:
         for j in inactive_neurons:
