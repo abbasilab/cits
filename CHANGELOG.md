@@ -1,5 +1,43 @@
 # Changelog
 
+## v1.5
+
+Two additional ways to run CITS, alongside the existing base (CPU) algorithm.
+The repository now offers three entry points.
+
+### Added
+
+- **GPU-accelerated CITS (`cits.cits_gpu`).** The faithful scalable CITS-lag
+  skeleton. It matches the exact base CITS algorithm
+  (`cits.methods.cits_full` with `cond_dep='cond_dep_pcorr'`) on every axis
+  except the conditioning-set search, which is replaced by the
+  neighbor-restricted, increasing-size PC search (cuPC on GPU). Returns the
+  rolled lagged binary adjacency. Requires a compiled cuPC `Skeleton.so` and
+  a CUDA-capable GPU.
+
+- **Contemporaneous / Version-B CITS (`cits.cits_versionb`).** Augments the
+  lagged CITS skeleton with a contemporaneous PC step, unions the lagged and
+  contemporaneous parents, and refits one coherent set of signed structural
+  (LSCM) coefficients per child. Pipeline: lagged skeleton (`cits_gpu`) +
+  contemporaneous PC skeleton (chi-subsampled lag-0 slice) + v-structure
+  orientation (Meek optional) + union + signed LSCM refit with local IDA for
+  undirected edges. Returns the signed weighted adjacency (beta / 0 / NaN
+  convention). Requires cuPC as above.
+
+- Internal helper modules `cits._cupc_wrapper`, `cits._pc_raw`,
+  `cits._pc_orientation`, `cits._union_cpdag`, `cits._lscm_refit`.
+
+### Notes
+
+- The cuPC shared library `Skeleton.so` is not bundled (separate GPL-3.0
+  GPU/CUDA build). Its location is configurable via the `CUPC_DIR`
+  environment variable, and a clear, actionable error is raised if it is not
+  found. See the README "GPU setup (cuPC)" section and cite
+  `zarebavani2020cupc`.
+- The GPU/Version-B imports degrade gracefully: `import cits` and the base
+  CPU algorithm work on a CPU-only machine; the GPU/Version-B functions raise
+  a clear error only when called without cuPC available.
+
 ## v1.4
 
 Two correctness fixes to the partial-correlation conditional independence test.

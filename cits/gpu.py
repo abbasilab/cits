@@ -1,0 +1,102 @@
+"""
+cits.gpu
+
+GPU-accelerated CITS: the faithful scalable CITS-lag skeleton.
+
+Matches the exact CITS algorithm (``cits.methods.cits_full`` with
+``cond_dep='cond_dep_pcorr'``) on every axis EXCEPT the conditioning-set
+search, which is replaced by the neighbor-restricted, increasing-size PC
+search (cuPC on GPU). That single substitution is sound under the
+faithfulness assumption CITS already requires: a valid separating set is
+guaranteed to lie within the adjacency set, so the powerset traversal is
+redundant and cuPC recovers the same skeleton under the oracle.
+
+Matched to exact CITS:
+  - NON-overlapping windows (as in cits.methods.data_transform), not overlapping.
+  - Window width w = 2*(tau+1) and time-major layout c = t*p + v
+    (identical to data_transform / cits_unrolled indexing).
+  - Full initial adjacency -> conditioning pool is the whole window, exactly
+    as in the CITS powerset (which conditions on all window variables).
+  - Targeted extraction of lag edges into the present slice t = 2*tau+1 from
+    source slices t1 in {tau+1, ..., 2*tau}, oriented by time -- identical to
+    cits_unrolled's tested edge set and cits_rolled's collapse.
+
+Only remaining difference from cits_full(pcorr): powerset conditioning ->
+neighbor-restricted increasing-size search (cuPC, capped at level 14).
+
+Requires a compiled cuPC ``Skeleton.so`` and a CUDA-capable GPU. See
+``cits._cupc_wrapper`` (and the README "GPU setup (cuPC)" section) for the
+``CUPC_DIR`` environment variable and build instructions.
+"""
+from __future__ import annotations
+import numpy as np
+
+from ._cupc_wrapper import pc_skeleton_cupc
+
+
+def _build_chi_nonoverlap(X: np.ndarray, tau: int) -> np.ndarray:
+    """Non-overlapping chi-stack, matching cits.methods.data_transform.
+
+    X : (p, T). Returns U : (N, p*w) with w = 2*(tau+1), N = floor((T-w)/w),
+    column index c = t*p + v (time-major), row i = window i.
+    """
+    p, T = X.shape
+    w = 2 * (tau + 1)
+    if T < 2 * w:
+        raise ValueError(f"T={T} too small for tau={tau} (need T >= {2*w})")
+    N = int((T - w) / w)
+    U = np.empty((N, p * w), dtype=np.float64)
+    for i in range(N):
+        block = X[:, w * i: w * (i + 1)]          # (p, w)
+        U[i, :] = block.T.reshape(p * w)          # time-major: c = t*p + v
+    return U
+
+
+def cits_gpu(X: np.ndarray, alpha: float = 0.05, tau: int = 1,
+             max_level: int = 14, verbose: bool = False) -> np.ndarray:
+    """Faithful scalable CITS-lag (rolled adjacency), Fisher-z via cuPC (GPU).
+
+    Parameters
+    ----------
+    X : np.ndarray, shape (p, T)
+        Time series, p variables (neurons) by T time points. Same input
+        convention as ``cits.methods.cits_full``.
+    alpha : float
+        Significance level for the Fisher-z partial-correlation test.
+    tau : int
+        CITS Markovian order / lag. Default 1 (paper default).
+    max_level : int
+        Max conditioning-set size passed to cuPC (compiled cap ML=14).
+    verbose : bool
+
+    Returns
+    -------
+    B : np.ndarray, shape (p, p), int
+        Rolled lagged adjacency. B[i, j] = 1 iff neuron i (at a past lag)
+        is inferred to be a causal parent of neuron j at the present slice.
+        Same contract as the source ``gpu_cits_lag_cupc_faithful``.
+    """
+    p, T = X.shape
+    w = 2 * (tau + 1)
+    U = _build_chi_nonoverlap(X, tau)             # (N, p*w), c = t*p + v
+
+    G_unrolled, _sep, _inactive, _lvl = pc_skeleton_cupc(
+        U, alpha=alpha, max_level=max_level, verbose=verbose)
+
+    # Targeted extraction: edges (v1, t1) -> (v2, t_target) into the present
+    # slice, sources in the recent-past window -- identical to cits_unrolled.
+    t_target = 2 * tau + 1
+    B = np.zeros((p, p), dtype=int)
+    for v1 in range(p):
+        for v2 in range(p):
+            for t1 in range(tau + 1, 2 * tau + 1):   # tau+1 .. 2*tau
+                c1 = t1 * p + v1
+                c2 = t_target * p + v2
+                if G_unrolled[c1, c2] != 0:
+                    B[v1, v2] = 1
+                    break
+    return B
+
+
+# Backwards-compatible alias matching the original source function name.
+gpu_cits_lag_cupc_faithful = cits_gpu
