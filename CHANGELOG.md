@@ -1,5 +1,51 @@
 # Changelog
 
+## v1.7
+
+A correctness fix for exact paper reproduction, plus a user-experience pass so
+users always know which backend is running and what to do when something fails.
+
+### Changed
+
+- **`cits_versionb` now reproduces the paper's montage pipeline exactly by
+  default.** New parameter `weight_lagged_only: bool = False`. When False
+  (default), the pipeline stops after the union LSCM refit, leaving
+  lagged-only edges (present in the lagged graph but not the contemporaneous
+  skeleton) unweighted -- matching `_neuropixels_versionB_pooled.versionB_directed`
+  and the Fig 5A magnitudes. When True, it also OLS-weights the lagged-only
+  edges (the previous, fuller behavior). Note: this changes the default
+  numeric output of `cits_versionb` relative to v1.5/v1.6 (e.g. on gabors,
+  41 nonzeros instead of 47); the union skeleton and edge-type outputs are
+  unchanged.
+
+### Added (user experience)
+
+- **One-time backend notice** (stderr, once per process) when a Version-B run
+  starts: `cits: using cuPC GPU backend.` (auto found cuPC),
+  `cits: cuPC not found; using the CPU backend ...` (auto fell back), or the
+  existing >100-variable recommendation for explicit `backend='cpu'`.
+  Silence with the env var `CITS_QUIET=1`.
+- **Runtime GPU-failure handling.** If a cuPC/CUDA call fails at run time:
+  under `backend='auto'` a warning is emitted and the run falls back to the
+  CPU backend; under explicit `backend='cupc'` it re-raises with actionable
+  guidance (fix cuPC/CUDA or use `backend='cpu'`) rather than silently
+  falling back.
+- **Actionable `tau>1` error** for `cits_versionb` pointing to `cits_gpu` for
+  higher-lag lagged-only inference. The invalid-`backend` `ValueError` is
+  unchanged.
+- **Progress markers** to stderr when `verbose=True`
+  (`[cits versionB] 1/4 lagged skeleton (p=NN)`, `2/4 contemporaneous PC`,
+  `3/4 union`, `4/4 LSCM refit`). Silent by default.
+- **Equivalence test** (`test/test_paper_repro.py`, runs only when cuPC is
+  available) asserting `cits_versionb(X, backend='cupc', weight_lagged_only=False)`
+  reproduces the original montage pipeline bit-for-bit on the gabors input.
+
+### Docs
+
+- README: `weight_lagged_only` documented (default reproduces the paper);
+  new "What you'll see / troubleshooting" subsection covering the backend
+  notice, CPU/GPU guidance, and cuPC-failure guidance.
+
 ## v1.6
 
 Makes the package usable on any machine with no author involvement: the GPU is

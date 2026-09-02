@@ -98,6 +98,16 @@ out = cits.cits_versionb(X, alpha=0.05, tau=1, full_output=True)
 no GPU and nothing native installed. `cits_gpu` (and `backend='cupc'`) raise a
 clear error only when called on a machine where cuPC is unavailable.
 
+**Reproducing the paper (`weight_lagged_only`).** By default
+(`weight_lagged_only=False`) `cits_versionb` reproduces the paper's montage
+pipeline exactly: it stops after the union LSCM refit, so lagged-only edges
+(present in the lagged graph but not the contemporaneous skeleton) stay in the
+skeleton but carry no weight. The Fig 5A magnitudes correspond to this
+default. Set `weight_lagged_only=True` to additionally OLS-weight those
+lagged-only edges (a fuller weighting with extra small-magnitude nonzeros).
+Only `tau=1` is supported (the union step); for lagged-only inference at
+higher `tau` use `cits_gpu(X, tau=...)`.
+
 ## Quickstart
 
 A runnable end-to-end example using the bundled simulator. No GPU needed.
@@ -239,6 +249,43 @@ cuPC present.
 Hashemi, M. & Salehkaleybar, S. (2020). cuPC: CUDA-based Parallel PC Algorithm
 for Causal Structure Learning on GPU. *IEEE Transactions on Parallel and
 Distributed Systems*, 31(3), 530-542.
+
+## What you'll see / troubleshooting
+
+- **Backend notice.** The first Version-B run in a process prints one line to
+  stderr saying which backend it chose and why:
+  - `cits: using cuPC GPU backend.` — `backend='auto'` found a working cuPC.
+  - `cits: cuPC not found; using the CPU backend (fine up to ~100 variables;
+    see README 'GPU setup' to enable GPU acceleration).` — `auto` fell back
+    to CPU.
+  - For explicit `backend='cpu'` above ~100 variables:
+    `cits: running Version B on CPU with p=NN variables; the cuPC GPU backend
+    is recommended above ~100 variables for speed (see README).`
+
+  It prints at most once per process. Silence all such info notices with
+  `export CITS_QUIET=1` (warnings still show).
+
+- **CPU vs GPU guidance.** The CPU backend works everywhere and is fine for
+  small-to-moderate graphs. Above ~100 variables (a practical guideline, not
+  a hard rule) the cuPC GPU backend is much faster. `backend='auto'` picks
+  cuPC when available.
+
+- **cuPC call failed at runtime.** If cuPC loads but the GPU call errors
+  (driver / CUDA mismatch, no visible GPU, out of memory):
+  - Under `backend='auto'` you'll see a warning
+    `cits: cuPC GPU call failed (<reason>); falling back to the CPU backend.
+    See README 'GPU setup'.` and the run continues on CPU.
+  - Under explicit `backend='cupc'` the call re-raises with
+    `cits: cuPC GPU call failed (<reason>). Fix your cuPC/CUDA setup or rerun
+    with backend='cpu'.` (no silent fallback).
+
+- **Progress for long runs.** Pass `verbose=True` to print concise stage
+  markers to stderr: `[cits versionB] 1/4 lagged skeleton (p=NN)`,
+  `2/4 contemporaneous PC`, `3/4 union`, `4/4 LSCM refit`.
+
+- **`tau>1` with `cits_versionb`.** Raises a clear error; the union step
+  supports `tau=1` only. Use `cits_gpu(X, tau=...)` for higher-lag
+  lagged-only inference.
 
 ## Documentation
 

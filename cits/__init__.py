@@ -14,7 +14,7 @@ machine, and the GPU/Version-B functions raise a clear error when the cuPC
 dependency is unavailable at call time.
 """
 
-__version__ = "1.6.0"
+__version__ = "1.7.0"
 
 from . import methods, simulate_timeseries
 
