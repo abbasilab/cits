@@ -8,14 +8,48 @@ You can get the latest version of CITS package as follows
 
 `pip install cits`
 
+To install this version from source:
+
+```bash
+git clone https://github.com/abbasilab/cits
+cd cits
+pip install .            # add the plotting helpers with: pip install ".[viz]"
+```
+
+**Typical install time:** about a minute or less on a desktop computer. A clean
+install of the package and its dependencies (numpy, scipy, pandas, networkx)
+took 12 s on a Linux server with a fast network connection; most of the
+time is spent downloading numpy and scipy. The optional GPU library (cuPC)
+compiles in about 30 s; see "GPU setup (cuPC)".
+
 This installs everything needed for the base algorithm, the CPU skeleton,
 and the GPU/Version-B wiring on Python + numpy/scipy/pandas/networkx. No R
 and no GPU are required to import `cits` or to run the default (Gaussian)
 conditional-independence test.
 
-## Requirements
+## System requirements
 
-- Python >= 3.6 (core: numpy, scipy, pandas, networkx).
+**Operating system.** Tested on Linux (Ubuntu 22.04, x86-64). The CPU code is
+pure Python with no platform-specific parts, but macOS and Windows have not
+been tested.
+
+**Python.** 3.7 or later. Tested on Python 3.9, 3.10 and 3.12.
+
+**Dependencies** (installed automatically by `pip`), with the versions tested:
+
+| Package | Tested versions |
+|---|---|
+| numpy | 1.26.4, 2.2.6, 2.5.3 |
+| scipy | 1.13.1, 1.15.3, 1.18.1 |
+| pandas | 2.3.3, 3.0.6 |
+| networkx | 3.2.1, 3.4.2, 3.7 |
+| matplotlib (optional, plotting) | 3.9.4, 3.10.9, 3.11.2 |
+
+**Hardware.** No special hardware is needed for the CPU path; the demo below
+uses about 110 MB of memory. The optional GPU backend needs an NVIDIA GPU and
+the CUDA toolkit (`nvcc`) to build cuPC. It was tested on an NVIDIA RTX 5000
+Ada (32 GB) with driver 535.261.03 and CUDA 12.2.
+
 - **Optional, for the non-Gaussian HSIC CI test only:** R >= 4.0 with the
   `kpcalg` package, plus the Python `rpy2` bridge. Install the Python side
   with `pip install cits[hsic]`, and the R side in R/RStudio:
@@ -29,6 +63,8 @@ conditional-independence test.
   ```
 
   The Gaussian partial-correlation test (the default) needs none of this.
+  This optional path is not covered by the automated test suite.
+
 - **Optional, recommended for large graphs (more than ~100 variables):** the
   cuPC GPU backend. See "GPU setup (cuPC)" below.
 
@@ -108,9 +144,10 @@ lagged-only edges (a fuller weighting with extra small-magnitude nonzeros).
 Only `tau=1` is supported (the union step); for lagged-only inference at
 higher `tau` use `cits_gpu(X, tau=...)`.
 
-## Quickstart
+## Demo (quickstart)
 
-A runnable end-to-end example using the bundled simulator. No GPU needed.
+A runnable end-to-end example on a small simulated dataset from the bundled
+simulator (4 variables, 2,000 time points). No data download and no GPU needed.
 
 ```python
 import numpy as np
@@ -138,6 +175,39 @@ B = cits.cits_versionb(X, alpha=0.05, tau=1, backend='cpu')
 parents_of_2 = np.where(adj[:, 2] != 0)[0]
 print("inferred causes of variable 2:", parents_of_2)   # expect {0, 1} for lingauss1
 ```
+
+**Run it.** Save the code above as `quickstart.py` and run `python quickstart.py`.
+
+**Expected output:**
+
+```
+(4, 2000)
+inferred causes of variable 2: [0 1]
+```
+
+In the simulated system, variables 0 and 1 drive variable 2 (ground-truth edges
+0 → 2, 1 → 2 and 2 → 3), so CITS recovers the true causes of variable 2.
+
+**Expected run time:** about 35 s on a single CPU core (measured on an Intel
+Xeon Gold 6430; a typical desktop is similar), using about 110 MB of memory.
+If cuPC is installed, the commented `cits_gpu` line returns the same causes,
+`[0 1]`, in about 10 s, most of which is one-time CUDA start-up. For larger
+graphs, the paper's benchmark (random sparse linear-Gaussian graphs, one GPU)
+runs 1,000 variables in about 33 s with 500 samples and about 61 s with 1,000.
+
+### Running CITS on your own data
+
+1. Arrange the recording as a NumPy array `X` of shape `(p, T)`: one row per
+   variable (for example, a neuron), one column per time point. Values must be
+   finite; `cits` raises an error on NaN.
+2. Choose `tau`, the maximum interaction delay in time bins (`tau=1` is the
+   default and is what the paper uses), and the significance level `alpha`.
+3. Pick an entry point ("Which method should I use?" below): `methods.cits_full`
+   for small graphs on CPU, `cits.cits_gpu` for large graphs (from about 100 to
+   1000+ variables), or `cits.cits_versionb` to add contemporaneous edges with
+   signed weights.
+4. Read the result: entry `[i, j]` is the inferred influence of variable `i` on
+   variable `j`.
 
 ### One entry point: `cits.run`
 
@@ -374,6 +444,18 @@ Alternatively, see the [Getting Started](https://cits.readthedocs.io/en/latest/g
 ## Contributing
 
 Your help is absolutely welcome! Please do reach out or create a future branch!
+
+## Reproducing the paper
+
+The scripts behind every figure and table of the CITS paper are in a separate
+repository: <!-- TODO: add the analysis repository URL when it is published -->
+[cits-paper](https://github.com/abbasilab/cits-paper).
+
+## License
+
+<!-- TODO before release: choose an OSI-approved license (e.g. MIT, BSD-3-Clause,
+GPL-3.0), add it as LICENSE, and name it here. -->
+See [LICENSE](LICENSE).
 
 ## Citation
 
