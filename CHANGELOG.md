@@ -1,5 +1,19 @@
 # Changelog
 
+## v1.8.3
+
+- **`plot_matrix` side strips are opt-in** (`side_strips=False` by default).
+  Group separators and side strips are drawn only when the nodes are ordered
+  by group, so the default matrix stays clean.
+- **Fix: `plot_graph` on NumPy 2.** It used `ndarray.ptp`, which NumPy 2.0
+  removed, and raised `AttributeError` on current NumPy. It now uses `np.ptp`.
+- **Packaging fix.** Stale `build/` and `cits.egg-info/` artifacts from v1.3
+  were tracked in git. Building from a fresh clone reused them and installed
+  an old `__init__.py` mixed with the new modules. They are no longer tracked
+  and are now ignored. The PyPI v1.4 wheel was checked and is unaffected.
+- **`python_requires` corrected to `>=3.7`**, because
+  `from __future__ import annotations` needs Python 3.7.
+
 ## v1.8.2
 
 - **`plot_matrix` matches the paper's Neuropixels adjacency style.** Now uses
