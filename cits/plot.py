@@ -319,7 +319,7 @@ def plot_graph(A, labels=None, groups=None, ax=None, layout="auto",
     xs = np.array([pos[i][0] for i in range(p)])
     ys = np.array([pos[i][1] for i in range(p)])
     center = np.array([xs.mean(), ys.mean()])
-    span = float(max(xs.ptp(), ys.ptp(), 1e-9))
+    span = float(max(np.ptp(xs), np.ptp(ys), 1e-9))  # np.ptp: ndarray.ptp was removed in NumPy 2.0
     short_thresh = 0.15 * span
     loop_r = 0.035 * span if span > 0 else 0.1
 
