@@ -455,10 +455,8 @@ repository: <!-- TODO: add the analysis repository URL when it is published -->
 
 CITS is free for **noncommercial use** (academic research, teaching, nonprofit
 and government work, personal use) under the
-[PolyForm Noncommercial License 1.0.0](LICENSE). **Commercial use requires a
-separate license** from the University of California, San Francisco; contact
-UCSF Innovation Ventures. <!-- TODO: add the UCSF Innovation Ventures contact
-and confirm the copyright line with UCSF before release. -->
+[PolyForm Noncommercial License 1.0.0](LICENSE). For commercial use, please
+contact the authors.
 
 Copyright (c) 2026 The Regents of the University of California.
 

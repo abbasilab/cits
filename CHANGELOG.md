@@ -14,7 +14,7 @@
 - **`python_requires` corrected to `>=3.7`**, because
   `from __future__ import annotations` needs Python 3.7.
 - **License and citation.** Released under the PolyForm Noncommercial License
-  1.0.0; commercial use requires a license from UCSF. Added `CITATION.cff`, a
+  1.0.0; for commercial use, contact the authors. Added `CITATION.cff`, a
   "How to cite" notice in `LICENSE`, and `cits.cite(bibtex=True)`.
 
 ## v1.8.2
