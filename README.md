@@ -8,6 +8,9 @@ You can get the latest version of CITS package as follows
 
 `pip install cits`
 
+(Until v1.9.0 is on PyPI, `pip install cits` gives v1.4, which lacks `cits_gpu`,
+`cits_versionb` and `cits_rcit`; install from source as below.)
+
 To install this version from source:
 
 ```bash
@@ -33,7 +36,7 @@ conditional-independence test.
 pure Python with no platform-specific parts, but macOS and Windows have not
 been tested.
 
-**Python.** 3.7 or later. Tested on Python 3.9, 3.10 and 3.12.
+**Python.** 3.7 or later. Tested on Python 3.9, 3.10, 3.11 and 3.12.
 
 **Dependencies** (installed automatically by `pip`), with the versions tested:
 
@@ -152,6 +155,10 @@ Visweswaran 2019), a fast random-Fourier-feature approximation of the kernel
 (HSIC) test. It detects nonlinear and non-Gaussian dependence, and is the test
 the paper uses for its nonlinear autoregressive and spiking-network
 benchmarks. Install the extra with `pip install cits[rcit]` (adds PyTorch).
+The default PyTorch wheel may target a newer CUDA than your driver supports; in that
+case PyTorch warns and runs on the CPU. To match your driver, install PyTorch first from
+https://pytorch.org (e.g. `pip install torch --index-url https://download.pytorch.org/whl/cu121`,
+or `.../whl/cpu` for CPU only). The paper used torch 2.9.1 with CUDA 12.
 
 ```python
 import cits
@@ -233,13 +240,14 @@ runs 1,000 variables in about 33 s with 500 samples and about 61 s with 1,000.
 ### One entry point: `cits.run`
 
 `cits.run(X, method, **kwargs)` dispatches by name, with `method` one of
-`'base'`, `'gpu'`, `'versionb'`. Keyword arguments pass straight through to the
+`'base'`, `'gpu'`, `'versionb'`, `'rcit'`. Keyword arguments pass straight through to the
 underlying function.
 
 ```python
 adj = cits.run(X, 'base', tau=1, alpha=0.05)          # -> methods.cits_full
 B_lag = cits.run(X, 'gpu', tau=1)                      # -> cits_gpu
 B = cits.run(X, 'versionb', backend='cpu')            # -> cits_versionb
+B = cits.run(X, 'rcit')                                # -> cits_rcit
 ```
 
 ### Plotting (optional)
@@ -286,8 +294,9 @@ many groups pass `group_colors={label: color}`.
 - **`cits.methods.cits_full` (base CITS)** — the reference algorithm with the
   full consistency guarantees. Lagged edges only, no contemporaneous edges.
   Supports the non-Gaussian HSIC CI test. Uses exhaustive powerset
-  conditioning, so it is only practical for small graphs (a handful of
-  variables). Use it for small problems, or when you want the exact canonical
+  conditioning, so it is only practical for small graphs: p=4, T=2000 takes
+  about 40 s, while p=5, T=3000 took about 20 min on one CPU core. Beyond about 4
+  variables, use `cits_versionb(backend='cpu')`, `cits_gpu` or `cits_rcit`. Use it for small problems, or when you want the exact canonical
   result or the non-Gaussian CI test.
 - **`cits.cits_gpu`** — lagged-only skeleton, cuPC-accelerated; scales to
   ~1000 variables. Use it when you have many variables, need only lagged
@@ -454,6 +463,16 @@ Distributed Systems*, 31(3), 530-542.
 - **`tau>1` with `cits_versionb`.** Raises a clear error; the union step
   supports `tau=1` only. Use `cits_gpu(X, tau=...)` for higher-lag
   lagged-only inference.
+
+## Running the tests
+
+```bash
+pip install pytest
+python -m pytest test
+```
+
+Tests that need cuPC or a GPU are skipped automatically. `test_paper_repro.py` also
+needs the authors' local benchmark data and is skipped elsewhere.
 
 ## Documentation
 

@@ -148,8 +148,8 @@ def _not_found_error():
     tried_str = "\n".join(tried) if tried else "    (none)"
     return FileNotFoundError(
         f"cuPC shared library ('{_LIB_NAME}') not found.\n"
-        f"cuPC is a REQUIRED external dependency for the GPU and Version-B "
-        f"modes (base CITS does not need it). It is a compiled GPU/CUDA "
+        f"cuPC is required for cits_gpu and for backend='cupc' "
+        f"(base CITS, cits_rcit and cits_versionb(backend='cpu') do not need it). It is a compiled GPU/CUDA "
         f"artifact, not on PyPI, so it is not bundled with the cits package.\n"
         f"Directories tried:\n{tried_str}\n"
         f"Fix it in any of these ways:\n"
