@@ -458,7 +458,7 @@ and government work, personal use) under the
 [PolyForm Noncommercial License 1.0.0](LICENSE). For commercial use, please
 contact the authors.
 
-Copyright (c) 2026 The Regents of the University of California.
+Copyright (c) 2023-2026 Rahul Biswas.
 
 The optional GPU backend calls cuPC, which is distributed separately under its
 own license (GPL-3.0) and is not bundled with this package.
