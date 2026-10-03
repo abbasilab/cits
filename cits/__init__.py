@@ -26,7 +26,7 @@ Logging: messages go through ``logging.getLogger('cits')``. Set its level to
 control verbosity; ``CITS_QUIET=1`` silences informational notices.
 """
 
-__version__ = "1.8.3"
+__version__ = "1.9.0"
 
 from . import methods, simulate_timeseries
 
@@ -77,6 +77,10 @@ except Exception as _vb_import_error:  # pragma: no cover - env dependent
             f"section). Original import error: {_cits_vb_err!r}"
         ) from _cits_vb_err
 
+# RCIT (kernel CI test) variant. Pure Python at import; torch is imported only
+# when cits_rcit is called with null='gamma' (pip install cits[rcit]).
+from .rcit import cits_rcit
+
 # Plotting helpers. matplotlib is an optional dependency (extras 'viz');
 # plot.py imports it lazily, so this import itself never needs matplotlib.
 # Wrapped for safety so `import cits` never fails on a plotting-dep issue.
@@ -98,7 +102,7 @@ except Exception as _plot_import_error:  # pragma: no cover - env dependent
         ) from _cits_plot_err
 
 
-_METHODS = ("base", "gpu", "versionb")
+_METHODS = ("base", "gpu", "versionb", "rcit")
 
 
 def run(X, method, **kwargs):
@@ -110,7 +114,7 @@ def run(X, method, **kwargs):
         Time series, p variables by T timepoints.
     method : str
         One of 'base' (-> cits.methods.cits_full), 'gpu' (-> cits.cits_gpu),
-        or 'versionb' (-> cits.cits_versionb).
+        'versionb' (-> cits.cits_versionb), or 'rcit' (-> cits.cits_rcit).
     **kwargs
         Passed through to the dispatched function (e.g. tau, alpha, backend).
 
@@ -124,10 +128,12 @@ def run(X, method, **kwargs):
         return cits_gpu(X, **kwargs)
     if method == "versionb":
         return cits_versionb(X, **kwargs)
+    if method == "rcit":
+        return cits_rcit(X, **kwargs)
     raise ValueError(
         f"unknown method {method!r}; valid methods are {list(_METHODS)} "
         f"('base' -> cits_full, 'gpu' -> cits_gpu, "
-        f"'versionb' -> cits_versionb).")
+        f"'versionb' -> cits_versionb, 'rcit' -> cits_rcit).")
 
 
 _CITE = (
@@ -161,6 +167,7 @@ __all__ = [
     "simulate_timeseries",
     "cits_gpu",
     "cits_versionb",
+    "cits_rcit",
     "run",
     "set_cupc_dir",
     "plot_graph",

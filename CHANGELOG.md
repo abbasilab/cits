@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.9.0
+
+- **New: `cits.cits_rcit`**, CITS with the randomized conditional-independence
+  test (RCIT), for nonlinear and non-Gaussian data. Batched gamma-null test via
+  PyTorch on CUDA or CPU (same graph on both), plus a NumPy permutation
+  reference (`null='perm'`). Windows of 2*tau+1 time points. Ported from the
+  code behind the paper's nonlinear and spiking benchmarks and verified to give
+  identical graphs (30/30 GPU, 3/3 permutation reference). Default
+  `max_cond_size=None` (no cap); `max_cond_size=5` reproduces the paper's
+  Table 1 exactly. New extra: `pip install cits[rcit]`. Available through
+  `cits.run(X, 'rcit')`.
+- Includes all v1.8.3 changes (license, citation, packaging and NumPy 2 fixes).
+
 ## v1.8.3
 
 - **`plot_matrix` side strips are opt-in** (`side_strips=False` by default).

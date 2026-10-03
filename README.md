@@ -44,6 +44,7 @@ been tested.
 | pandas | 2.3.3, 3.0.6 |
 | networkx | 3.2.1, 3.4.2, 3.7 |
 | matplotlib (optional, plotting) | 3.9.4, 3.10.9, 3.11.2 |
+| torch (optional, `cits_rcit`) | 2.9.1 |
 
 **Hardware.** No special hardware is needed for the CPU path; the demo below
 uses about 110 MB of memory. The optional GPU backend needs an NVIDIA GPU and
@@ -69,9 +70,9 @@ Ada (32 GB) with driver 535.261.03 and CUDA 12.2.
   cuPC GPU backend. See "GPU setup (cuPC)" below.
 
 
-## Three ways to run CITS
+## Four ways to run CITS
 
-The package exposes three entry points. All take the time series `X` with
+The package exposes four entry points. All take the time series `X` with
 shape `(p, T)` (p variables/neurons by T time points).
 
 ### 1. Base CITS (CPU)
@@ -143,6 +144,26 @@ default. Set `weight_lagged_only=True` to additionally OLS-weight those
 lagged-only edges (a fuller weighting with extra small-magnitude nonzeros).
 Only `tau=1` is supported (the union step); for lagged-only inference at
 higher `tau` use `cits_gpu(X, tau=...)`.
+
+### 4. Nonlinear and non-Gaussian data: RCIT (`cits_rcit`)
+
+CITS with the randomized conditional-independence test (RCIT; Strobl, Zhang &
+Visweswaran 2019), a fast random-Fourier-feature approximation of the kernel
+(HSIC) test. It detects nonlinear and non-Gaussian dependence, and is the test
+the paper uses for its nonlinear autoregressive and spiking-network
+benchmarks. Install the extra with `pip install cits[rcit]` (adds PyTorch).
+
+```python
+import cits
+
+B = cits.cits_rcit(X, alpha=0.05, tau=1)   # (p, p) int lagged adjacency, self-lags included
+```
+
+It runs on a CUDA GPU when one is available and on the CPU otherwise, and
+gives the same graph on both. `max_cond_size=None` (the default) searches
+conditioning sets of every size; the paper's benchmarks used
+`max_cond_size=5`, which changed 2 of 450 benchmark runs. `null='perm'`
+selects a NumPy-only permutation reference (slow, no PyTorch needed).
 
 ## Demo (quickstart)
 
@@ -271,6 +292,9 @@ many groups pass `group_colors={label: color}`.
 - **`cits.cits_gpu`** — lagged-only skeleton, cuPC-accelerated; scales to
   ~1000 variables. Use it when you have many variables, need only lagged
   (directed, one-lag) edges, and have a GPU.
+- **`cits.cits_rcit`** — lagged edges with the RCIT kernel test. Use it for
+  nonlinear or non-Gaussian data such as spike counts. Slower than the
+  partial-correlation versions; practical for small to moderate graphs.
 - **`cits.cits_versionb`** — lagged + contemporaneous edges with signed LSCM
   edge weights (the pipeline used for the paper's neural analyses). Use it
   when (i) the sampling rate is slow relative to the interaction timescale so

@@ -3,7 +3,7 @@ import setuptools
 with open('README.md','r') as fh:
     README = fh.read()
 
-VERSION = "1.8.3"
+VERSION = "1.9.0"
 
 setuptools.setup(
     # Needed to silence warnings (and to be a worthwhile package)
@@ -26,6 +26,8 @@ setuptools.setup(
         # Plotting helpers (cits.plot_graph / cits.plot_matrix). networkx is
         # already a core dependency; matplotlib is only needed for plotting.
         'viz': ['matplotlib'],
+        # RCIT kernel CI test with the batched gamma null (CPU or CUDA).
+        'rcit': ['torch'],
     },
     url='https://github.com/abbasilab/cits',
     packages=setuptools.find_packages(),
