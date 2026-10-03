@@ -27,7 +27,7 @@ setuptools.setup(
         # already a core dependency; matplotlib is only needed for plotting.
         'viz': ['matplotlib'],
     },
-    url='https://github.com/biswasr/CITS',
+    url='https://github.com/abbasilab/cits',
     packages=setuptools.find_packages(),
     python_requires='>=3.7',  # 'from __future__ import annotations' requires 3.7+
     license='PolyForm-Noncommercial-1.0.0',
