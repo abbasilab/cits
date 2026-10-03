@@ -139,9 +139,21 @@ _CITE = (
     "'Citation' section for the current reference.")
 
 
-def cite():
-    """Print how to cite CITS (arXiv pointer; finalized on publication)."""
-    print(_CITE)
+_BIBTEX = """@article{biswas2025cits,
+  title   = {CITS: Nonparametric Statistical Causal Modeling for High-Resolution Neural Time Series},
+  author  = {Biswas, Rahul and Sripada, SuryaNarayana and Mukherjee, Somabha and Abbasi-Asl, Reza},
+  journal = {arXiv preprint arXiv:2508.01920},
+  year    = {2025},
+  url     = {https://arxiv.org/abs/2508.01920}
+}"""
+
+
+def cite(bibtex=False):
+    """Print how to cite CITS (arXiv pointer; finalized on publication).
+
+    With ``bibtex=True``, print a BibTeX entry instead.
+    """
+    print(_BIBTEX if bibtex else _CITE)
 
 
 __all__ = [

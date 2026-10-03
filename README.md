@@ -453,20 +453,41 @@ repository: <!-- TODO: add the analysis repository URL when it is published -->
 
 ## License
 
-<!-- TODO before release: choose an OSI-approved license (e.g. MIT, BSD-3-Clause,
-GPL-3.0), add it as LICENSE, and name it here. -->
-See [LICENSE](LICENSE).
+CITS is free for **noncommercial use** (academic research, teaching, nonprofit
+and government work, personal use) under the
+[PolyForm Noncommercial License 1.0.0](LICENSE). **Commercial use requires a
+separate license** from the University of California, San Francisco; contact
+UCSF Innovation Ventures. <!-- TODO: add the UCSF Innovation Ventures contact
+and confirm the copyright line with UCSF before release. -->
+
+Copyright (c) 2026 The Regents of the University of California.
+
+The optional GPU backend calls cuPC, which is distributed separately under its
+own license (GPL-3.0) and is not bundled with this package.
 
 ## Citation
 
-If you use CITS, please cite the paper:
+If you use CITS in published work, please cite the paper:
 
-Biswas, R., Sripada, S., Mukherjee, S. & Abbasi-Asl, R. CITS: Nonparametric Statistical Causal Modeling for High-Resolution Neural Time Series. arXiv:2508.01920. [https://arxiv.org/abs/2508.01920](https://arxiv.org/abs/2508.01920)
+Biswas, R., Sripada, S., Mukherjee, S. & Abbasi-Asl, R. CITS: Nonparametric
+Statistical Causal Modeling for High-Resolution Neural Time Series.
+arXiv:2508.01920. [https://arxiv.org/abs/2508.01920](https://arxiv.org/abs/2508.01920)
+
+```bibtex
+@article{biswas2025cits,
+  title   = {CITS: Nonparametric Statistical Causal Modeling for High-Resolution Neural Time Series},
+  author  = {Biswas, Rahul and Sripada, SuryaNarayana and Mukherjee, Somabha and Abbasi-Asl, Reza},
+  journal = {arXiv preprint arXiv:2508.01920},
+  year    = {2025},
+  url     = {https://arxiv.org/abs/2508.01920}
+}
+```
+
+`cits.cite()` prints this reference and `cits.cite(bibtex=True)` prints the
+BibTeX entry. GitHub's "Cite this repository" button uses `CITATION.cff`. If
+you use the GPU backend, please also cite cuPC (see "GPU setup (cuPC)").
 
 The citation will be finalized upon publication; please check this section (or
 the arXiv page) for the up-to-date reference before citing. `cits.cite()`
 prints this pointer. A citeable Zenodo DOI for the software will accompany the
 tagged release: `DOI: <to be assigned on release>`.
-
-The GPU backend uses cuPC (Zarebavani et al. 2020); see "GPU setup (cuPC)" for
-its separate citation and license.
