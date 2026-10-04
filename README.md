@@ -8,10 +8,7 @@ You can get the latest version of CITS package as follows
 
 `pip install cits`
 
-(Until v1.9.0 is on PyPI, `pip install cits` gives v1.4, which lacks `cits_gpu`,
-`cits_versionb` and `cits_rcit`; install from source as below.)
-
-To install this version from source:
+To install from source instead:
 
 ```bash
 git clone https://github.com/abbasilab/cits
@@ -21,7 +18,7 @@ pip install .            # add the plotting helpers with: pip install ".[viz]"
 
 **Typical install time:** about a minute or less on a desktop computer. A clean
 install of the package and its dependencies (numpy, scipy, pandas, networkx)
-took 12 s on a Linux server with a fast network connection; most of the
+took 12–16 s on a Linux server with a fast network connection; most of the
 time is spent downloading numpy and scipy. The optional GPU library (cuPC)
 compiles in about 30 s; see "GPU setup (cuPC)".
 
@@ -36,7 +33,7 @@ conditional-independence test.
 pure Python with no platform-specific parts, but macOS and Windows have not
 been tested.
 
-**Python.** 3.7 or later. Tested on Python 3.9, 3.10, 3.11 and 3.12.
+**Python.** Tested on Python 3.9, 3.10, 3.11 and 3.12.
 
 **Dependencies** (installed automatically by `pip`), with the versions tested:
 
@@ -216,7 +213,7 @@ inferred causes of variable 2: [0 1]
 In the simulated system, variables 0 and 1 drive variable 2 (ground-truth edges
 0 → 2, 1 → 2 and 2 → 3), so CITS recovers the true causes of variable 2.
 
-**Expected run time:** about 35 s on a single CPU core (measured on an Intel
+**Expected run time:** under a minute; about 50 s on a single CPU core (measured on an Intel
 Xeon Gold 6430; a typical desktop is similar), using about 110 MB of memory.
 If cuPC is installed, the commented `cits_gpu` line returns the same causes,
 `[0 1]`, in about 10 s, most of which is one-time CUDA start-up. For larger
