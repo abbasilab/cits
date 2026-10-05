@@ -469,7 +469,12 @@ also needs the authors' local benchmark data and is skipped elsewhere.
 
 ## Tutorial
 
-Visit this [Google Colab](https://colab.research.google.com/drive/1TS_uVnbiW9Pb1ywBVjHdL-lnrdFkJ3wp?usp=sharing) for getting started with this package.
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/abbasilab/cits/blob/main/examples/quickstart.ipynb)
+
+The [quickstart notebook](examples/quickstart.ipynb) runs CITS on simulated
+linear and nonlinear data with known ground truth, shows signed edge weights
+and the plots, and ends with how to run it on your own data. It needs no GPU
+and runs in a few minutes on Colab.
 
 Alternatively, see the [Getting Started](https://cits.readthedocs.io/en/latest/gettingstarted.html) in the documentation.
 

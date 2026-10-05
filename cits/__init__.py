@@ -34,7 +34,7 @@ Logging: messages go through ``logging.getLogger('cits')``. Set its level to
 control verbosity; ``CITS_QUIET=1`` silences informational notices.
 """
 
-__version__ = "1.9.1"
+__version__ = "1.9.2"
 
 import warnings
 

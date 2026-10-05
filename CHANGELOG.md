@@ -1,5 +1,13 @@
 # Changelog
 
+## v1.9.2
+
+- **Simulator.** `simulate_timeseries.simulate('lingauss1', ...)` now generates
+  X3 = 2 X1 - X2 + noise, matching Linear Gaussian 1 in the paper. It
+  previously used +X2. The ground-truth weight for 1 -> 2 is now -1.
+- **Quickstart notebook** `examples/quickstart.ipynb` with an Open in Colab
+  link, replacing the old Colab link.
+
 ## v1.9.1
 
 - **Renamed `cits.cits_versionb` to `cits.cits_contemporaneous`**, and
