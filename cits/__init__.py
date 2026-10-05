@@ -11,7 +11,7 @@ Every function runs the same CITS algorithm. They differ in two choices:
     - exhaustive conditioning-set search, small to moderate graphs:
         cits.methods.cits_full (partial correlation)
         cits.cits_rcit (RCIT; GPU if available, else CPU)
-    - neighbor-restricted search, large graphs (~100 to 1000+ variables):
+    - neighbor-restricted search, large graphs (~100 to thousands of variables):
         cits.cits_gpu (partial correlation, GPU via cuPC)
     - lagged plus contemporaneous (same-time) edges, for slow sampling:
         cits.cits_contemporaneous (partial correlation; CPU or GPU)

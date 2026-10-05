@@ -94,8 +94,8 @@ def cits_gpu(X: np.ndarray, alpha: float = 0.05, tau: int = 1,
     (``cits.methods.cits_full`` with the Gaussian partial-correlation test)
     except that the exponential powerset conditioning search is replaced by
     cuPC's neighbor-restricted PC-stable search on the GPU, which is sound
-    under the faithfulness assumption CITS already requires. Scales to on the
-    order of 1000 variables. Requires a compiled cuPC ``Skeleton.so`` and a
+    under the faithfulness assumption CITS already requires. Scales to
+    thousands of variables, limited by GPU memory. Requires a compiled cuPC ``Skeleton.so`` and a
     CUDA-capable GPU (see the README "GPU setup (cuPC)" section).
 
     Parameters

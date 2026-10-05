@@ -81,7 +81,7 @@ choices, and you pick each one separately:
    dependence, such as in spike counts.
 2. **The search, which you match to graph size and sampling rate.** The
    exhaustive conditioning-set search suits small graphs. The
-   neighbor-restricted search (cuPC on a GPU) scales to about 1000 variables.
+   neighbor-restricted search (cuPC on a GPU) scales to thousands of variables.
    The contemporaneous variant also infers same-time edges, which matters when
    sampling is slow relative to the interactions (e.g. calcium imaging).
 
@@ -141,8 +141,11 @@ needed).
 
 For large graphs. It replaces the exhaustive search with cuPC's
 neighbor-restricted PC-stable search, which recovers the same graph under the
-faithfulness assumption CITS already makes, and scales to about 1000
-variables. It uses partial correlation, infers lagged edges, and requires
+faithfulness assumption CITS already makes, and scales to thousands of
+variables: on one GPU, about 33 s for 1,000 variables (500 samples) and about
+3 h for 2,000 variables (2,000 samples). The largest graph is set by GPU
+memory rather than run time; a 5,000-variable run failed in cuPC on our 32 GB
+GPU. It uses partial correlation, infers lagged edges, and requires
 cuPC (see "GPU setup (cuPC)" below).
 
 ```python
@@ -309,8 +312,8 @@ Start from the table in "How to run CITS". Practical limits:
 - **`cits.cits_rcit`**: slower per test than partial correlation; practical
   for small to moderate graphs, faster on a GPU. Lower `max_cond_size` to
   trade search depth for speed.
-- **`cits.cits_gpu`**: needs an NVIDIA GPU and cuPC; scales to about 1000
-  variables.
+- **`cits.cits_gpu`**: needs an NVIDIA GPU and cuPC; scales to thousands of
+  variables, limited by GPU memory (see above).
 - **`cits.cits_contemporaneous`**: CPU is fine for small to moderate graphs;
   cuPC is recommended above about 100 variables.
 
