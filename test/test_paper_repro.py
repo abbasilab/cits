@@ -1,9 +1,9 @@
 """
 Paper-reproduction equivalence test.
 
-Asserts that ``cits.cits_versionb(X, backend='cupc', weight_lagged_only=False)``
+Asserts that ``cits.cits_contemporaneous(X, backend='cupc', weight_lagged_only=False)``
 reproduces the original MICrONS montage pipeline
-(``_neuropixels_versionB_pooled.versionB_directed``, i.e. cuPC lagged +
+(``fig5_neuropixels/_neuropixels_contemp_pooled.py (contemp_directed) in cits-paper``, i.e. cuPC lagged +
 PC-contemporaneous + v-structures + union + single LSCM refit, NO lagged-only
 fill) bit-for-bit on the gabors input.
 
@@ -46,8 +46,8 @@ def _load_gabors_X():
     return np.ascontiguousarray(X, dtype=np.float64)
 
 
-def _original_versionb(X):
-    """Original montage Version-B weighted adjacency (union_B, nan_to_num'd).
+def _original_contemporaneous(X):
+    """Original montage contemporaneous weighted adjacency (union_B, nan_to_num'd).
 
     Imports the original (pre-package) modules from the analysis directory.
     Those modules need /home/rbiswas1/repos/cits on sys.path because the
@@ -76,7 +76,7 @@ def _original_versionb(X):
 
 @pytest.mark.skipif(not (os.path.exists(_P_RAW) and os.path.exists(_MASK)),
                     reason="gabors data not present on this machine")
-def test_versionb_reproduces_montage_pipeline():
+def test_contemporaneous_reproduces_montage_pipeline():
     if not _cupc_available():
         pytest.skip("cuPC (Skeleton.so) unavailable; equivalence not checked")
     if not os.path.isdir(_ANALYSIS_DIR):
@@ -85,11 +85,11 @@ def test_versionb_reproduces_montage_pipeline():
 
     X = _load_gabors_X()
 
-    pkg_B = cits.cits_versionb(X, alpha=0.05, tau=1, backend='cupc',
+    pkg_B = cits.cits_contemporaneous(X, alpha=0.05, tau=1, backend='cupc',
                                weight_lagged_only=False)
     pkg_B = np.nan_to_num(np.asarray(pkg_B))
 
-    orig_B = _original_versionb(X)
+    orig_B = _original_contemporaneous(X)
 
     assert pkg_B.shape == orig_B.shape
     assert np.allclose(pkg_B, orig_B), (

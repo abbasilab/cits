@@ -23,7 +23,7 @@ time is spent downloading numpy and scipy. The optional GPU library (cuPC)
 compiles in about 30 s; see "GPU setup (cuPC)".
 
 This installs everything needed for the base algorithm, the CPU skeleton,
-and the GPU/Version-B wiring on Python + numpy/scipy/pandas/networkx. No R
+and the GPU/contemporaneous wiring on Python + numpy/scipy/pandas/networkx. No R
 and no GPU are required to import `cits` or to run the default (Gaussian)
 conditional-independence test.
 
@@ -70,90 +70,59 @@ Ada (32 GB) with driver 535.261.03 and CUDA 12.2.
   cuPC GPU backend. See "GPU setup (cuPC)" below.
 
 
-## Four ways to run CITS
+## How to run CITS
 
-The package exposes four entry points. All take the time series `X` with
-shape `(p, T)` (p variables/neurons by T time points).
+Every function below runs the same CITS algorithm. They differ in only two
+choices, and you pick each one separately:
 
-### 1. Base CITS (CPU)
+1. **The conditional-independence test, which you match to your data.**
+   Partial correlation (Fisher z) is fast and suits linear or approximately
+   Gaussian data. The RCIT kernel test detects nonlinear and non-Gaussian
+   dependence, such as in spike counts.
+2. **The search, which you match to graph size and sampling rate.** The
+   exhaustive conditioning-set search suits small graphs. The
+   neighbor-restricted search (cuPC on a GPU) scales to about 1000 variables.
+   The contemporaneous variant also infers same-time edges, which matters when
+   sampling is slow relative to the interactions (e.g. calcium imaging).
 
-The original nonparametric algorithm. Always available, no GPU required.
+| Search | Partial correlation (linear / Gaussian) | RCIT (nonlinear / non-Gaussian) |
+|---|---|---|
+| Exhaustive, lagged edges (small to moderate graphs) | `cits.methods.cits_full` | `cits.cits_rcit` |
+| Neighbor-restricted, lagged edges (large graphs, GPU) | `cits.cits_gpu` | not available |
+| Lagged + contemporaneous edges, signed weights | `cits.cits_contemporaneous` | not available |
+
+All functions take the time series `X` with shape `(p, T)` (p variables by
+T time points) and return a `(p, p)` matrix whose entry `[i, j]` is the
+inferred influence of variable `i` on variable `j`. `cits.run(X, method)`
+dispatches by name: `'base'`, `'rcit'`, `'gpu'` or `'contemporaneous'`.
+
+### Exhaustive search with partial correlation: `cits.methods.cits_full`
+
+The reference algorithm. It needs no GPU. The exhaustive search grows quickly
+with the number of variables, so use it for small graphs (about 4 to 5
+variables).
 
 ```python
 import numpy as np
 from cits import methods
 
-X = np.random.randn(4, 1000)          # (p, T)
-adj = methods.cits_full(X, tau=1, alpha=0.05)             # binary adjacency
-adj, eff = methods.cits_full_weighted(X, tau=1, alpha=0.05)  # + weighted effects
+X = np.random.randn(4, 1000)                                  # (p, T)
+adj = methods.cits_full(X, tau=1, alpha=0.05)                 # binary adjacency
+adj, eff = methods.cits_full_weighted(X, tau=1, alpha=0.05)   # plus weighted effects
 ```
 
-### 2. GPU-accelerated CITS (cuPC)
+### Exhaustive search with RCIT: `cits.cits_rcit`
 
-The scalable CITS-lag skeleton. It matches base CITS except that the
-exponential powerset conditioning search is replaced by the
-neighbor-restricted PC-stable skeleton (cuPC on GPU), which is sound under
-the faithfulness assumption CITS already requires. It recovers lagged
-(directed-in-time, one-lag) edges only and scales to on the order of 1000
-variables. Returns the rolled lagged binary adjacency. Requires cuPC (see
-"GPU setup" below).
+The same search with the randomized conditional-independence test (RCIT;
+Strobl, Zhang & Visweswaran 2019), a fast random-Fourier-feature approximation
+of the kernel (HSIC) test. Use it for nonlinear or non-Gaussian data. The paper
+uses it for its nonlinear autoregressive and spiking-network benchmarks. It
+runs on a CUDA GPU when one is available and on the CPU otherwise, and gives
+the same graph on both.
 
-```python
-import cits
-
-B_lag = cits.cits_gpu(X, alpha=0.05, tau=1)   # (p, p) int lagged adjacency
-```
-
-### 3. Contemporaneous / Version B CITS
-
-Base CITS infers only lagged (directed-in-time) edges. Version B adds a
-contemporaneous PC step, unions the lagged and contemporaneous parents, and
-refits one coherent set of signed structural (LSCM) edge weights per child.
-This is the pipeline used for the paper's neural analyses. It runs the lagged
-skeleton, a contemporaneous PC skeleton, v-structure orientation (Meek
-optional), the union, and a signed LSCM refit with local IDA for undirected
-edges.
-
-Version B runs on **either backend**. The `backend` argument defaults to
-`'auto'`: it uses cuPC when a working `Skeleton.so` is found, otherwise it
-falls back to the pure-numpy CPU skeleton (both give the same skeleton). Use
-`backend='cpu'` to force CPU and `backend='cupc'` to require the GPU. cuPC is
-recommended above ~100 variables for speed.
-
-```python
-import cits
-
-B = cits.cits_versionb(X, alpha=0.05, tau=1)                 # backend='auto'
-B = cits.cits_versionb(X, alpha=0.05, tau=1, backend='cpu')  # force CPU, no GPU
-# B[parent, child] = signed beta; 0 = non-edge; NaN = skeleton-only (sign-ambiguous)
-
-out = cits.cits_versionb(X, alpha=0.05, tau=1, full_output=True)
-# dict: 'weighted', 'skeleton', 'edge_type', 'sign_ambiguous', 'lagged', 'cpdag'
-```
-
-`import cits`, base CITS, and `cits_versionb(..., backend='cpu')` all work with
-no GPU and nothing native installed. `cits_gpu` (and `backend='cupc'`) raise a
-clear error only when called on a machine where cuPC is unavailable.
-
-**Reproducing the paper (`weight_lagged_only`).** By default
-(`weight_lagged_only=False`) `cits_versionb` reproduces the paper's montage
-pipeline exactly: it stops after the union LSCM refit, so lagged-only edges
-(present in the lagged graph but not the contemporaneous skeleton) stay in the
-skeleton but carry no weight. The Fig 5A magnitudes correspond to this
-default. Set `weight_lagged_only=True` to additionally OLS-weight those
-lagged-only edges (a fuller weighting with extra small-magnitude nonzeros).
-Only `tau=1` is supported (the union step); for lagged-only inference at
-higher `tau` use `cits_gpu(X, tau=...)`.
-
-### 4. Nonlinear and non-Gaussian data: RCIT (`cits_rcit`)
-
-CITS with the randomized conditional-independence test (RCIT; Strobl, Zhang &
-Visweswaran 2019), a fast random-Fourier-feature approximation of the kernel
-(HSIC) test. It detects nonlinear and non-Gaussian dependence, and is the test
-the paper uses for its nonlinear autoregressive and spiking-network
-benchmarks. Install the extra with `pip install cits[rcit]` (adds PyTorch).
-The default PyTorch wheel may target a newer CUDA than your driver supports; in that
-case PyTorch warns and runs on the CPU. To match your driver, install PyTorch first from
+Install the extra with `pip install cits[rcit]` (adds PyTorch). If the default
+PyTorch wheel targets a newer CUDA than your driver supports, PyTorch warns and
+runs on the CPU. To match your driver, install PyTorch first from
 https://pytorch.org (e.g. `pip install torch --index-url https://download.pytorch.org/whl/cu121`,
 or `.../whl/cpu` for CPU only). The paper used torch 2.9.1 with CUDA 12.
 
@@ -163,11 +132,55 @@ import cits
 B = cits.cits_rcit(X, alpha=0.05, tau=1)   # (p, p) int lagged adjacency, self-lags included
 ```
 
-It runs on a CUDA GPU when one is available and on the CPU otherwise, and
-gives the same graph on both. `max_cond_size=None` (the default) searches
-conditioning sets of every size; the paper's benchmarks used
-`max_cond_size=5`, which changed 2 of 450 benchmark runs. `null='perm'`
-selects a NumPy-only permutation reference (slow, no PyTorch needed).
+`max_cond_size=None` (the default, as in the paper's benchmarks) searches
+conditioning sets of every size. A smaller cap is faster on larger graphs.
+`null='perm'` selects a NumPy-only permutation reference (slow, no PyTorch
+needed).
+
+### Neighbor-restricted search on a GPU: `cits.cits_gpu`
+
+For large graphs. It replaces the exhaustive search with cuPC's
+neighbor-restricted PC-stable search, which recovers the same graph under the
+faithfulness assumption CITS already makes, and scales to about 1000
+variables. It uses partial correlation, infers lagged edges, and requires
+cuPC (see "GPU setup (cuPC)" below).
+
+```python
+import cits
+
+B_lag = cits.cits_gpu(X, alpha=0.05, tau=1)   # (p, p) int lagged adjacency
+```
+
+### Lagged and contemporaneous edges: `cits.cits_contemporaneous`
+
+When sampling is slow relative to the interactions, many interactions fall
+within a single sample and appear as same-time (contemporaneous) dependence.
+This function adds a contemporaneous PC step to the lagged CITS search, takes
+the union of lagged and contemporaneous parents, and fits one set of signed
+edge weights per target (a linear structural causal model refit, with local
+IDA for edges whose direction is not identified). The paper uses it for its
+calcium-imaging and Neuropixels analyses. It uses partial correlation and
+supports `tau=1`.
+
+The `backend` argument is `'auto'` by default: it uses cuPC when available and
+the CPU otherwise. Both give the same skeleton. cuPC is recommended above about
+100 variables.
+
+```python
+import cits
+
+B = cits.cits_contemporaneous(X, alpha=0.05, tau=1)                 # backend='auto'
+B = cits.cits_contemporaneous(X, alpha=0.05, tau=1, backend='cpu')  # no GPU needed
+# B[parent, child] = signed weight; 0 = no edge; NaN = edge with unidentified sign
+
+out = cits.cits_contemporaneous(X, alpha=0.05, tau=1, full_output=True)
+# dict: 'weighted', 'skeleton', 'edge_type', 'sign_ambiguous', 'lagged', 'cpdag'
+```
+
+By default (`weight_lagged_only=False`) the output matches the paper's
+analyses: edges found only in the lagged search stay in the skeleton without
+a weight. Set `weight_lagged_only=True` to also give those edges a
+least-squares weight.
 
 ## Demo (quickstart)
 
@@ -187,15 +200,15 @@ print(X.shape)          # (4, 2000)  -> p=4 variables, T=2000 time points
 adj = methods.cits_full(X, tau=1, alpha=0.05)             # (p, p) 0/1
 adj_w, eff = methods.cits_full_weighted(X, tau=1, alpha=0.05)
 
-# 2) Version B (CPU here): lagged + contemporaneous, signed weights.
-B = cits.cits_versionb(X, alpha=0.05, tau=1, backend='cpu')
+# 2) Lagged + contemporaneous edges with signed weights (CPU here).
+B = cits.cits_contemporaneous(X, alpha=0.05, tau=1, backend='cpu')
 
 # 3) At scale, prefer the GPU lagged skeleton (needs cuPC):
 # B_lag = cits.cits_gpu(X, alpha=0.05, tau=1)
 
 # Read the result: entry [i, j] is the i -> j causal influence.
 # For cits_full: 1 = edge, 0 = no edge.
-# For cits_versionb: signed beta = edge weight, 0 = no edge,
+# For cits_contemporaneous: signed beta = edge weight, 0 = no edge,
 #   NaN = edge present but sign-ambiguous (no identifiable weight).
 parents_of_2 = np.where(adj[:, 2] != 0)[0]
 print("inferred causes of variable 2:", parents_of_2)   # expect {0, 1} for lingauss1
@@ -227,23 +240,22 @@ runs 1,000 variables in about 33 s with 500 samples and about 61 s with 1,000.
    finite; `cits` raises an error on NaN.
 2. Choose `tau`, the maximum interaction delay in time bins (`tau=1` is the
    default and is what the paper uses), and the significance level `alpha`.
-3. Pick an entry point ("Which method should I use?" below): `methods.cits_full`
-   for small graphs on CPU, `cits.cits_gpu` for large graphs (from about 100 to
-   1000+ variables), or `cits.cits_versionb` to add contemporaneous edges with
-   signed weights.
+3. Pick the function from the table in "How to run CITS": the column by your
+   data (linear/Gaussian or not) and the row by graph size and whether you
+   need same-time edges.
 4. Read the result: entry `[i, j]` is the inferred influence of variable `i` on
    variable `j`.
 
 ### One entry point: `cits.run`
 
 `cits.run(X, method, **kwargs)` dispatches by name, with `method` one of
-`'base'`, `'gpu'`, `'versionb'`, `'rcit'`. Keyword arguments pass straight through to the
+`'base'`, `'gpu'`, `'contemporaneous'`, `'rcit'`. Keyword arguments pass straight through to the
 underlying function.
 
 ```python
 adj = cits.run(X, 'base', tau=1, alpha=0.05)          # -> methods.cits_full
 B_lag = cits.run(X, 'gpu', tau=1)                      # -> cits_gpu
-B = cits.run(X, 'versionb', backend='cpu')            # -> cits_versionb
+B = cits.run(X, 'contemporaneous', backend='cpu')      # -> cits_contemporaneous
 B = cits.run(X, 'rcit')                                # -> cits_rcit
 ```
 
@@ -288,28 +300,21 @@ many groups pass `group_colors={label: color}`.
 
 ## Which method should I use?
 
-- **`cits.methods.cits_full` (base CITS)** — the reference algorithm with the
-  full consistency guarantees. Lagged edges only, no contemporaneous edges.
-  Supports the non-Gaussian HSIC CI test. Uses exhaustive powerset
-  conditioning, so it is only practical for small graphs: p=4, T=2000 takes
-  about 40 s, while p=5, T=3000 took about 20 min on one CPU core. Beyond about 4
-  variables, use `cits_versionb(backend='cpu')`, `cits_gpu` or `cits_rcit`. Use it for small problems, or when you want the exact canonical
-  result or the non-Gaussian CI test.
-- **`cits.cits_gpu`** — lagged-only skeleton, cuPC-accelerated; scales to
-  ~1000 variables. Use it when you have many variables, need only lagged
-  (directed, one-lag) edges, and have a GPU.
-- **`cits.cits_rcit`** — lagged edges with the RCIT kernel test. Use it for
-  nonlinear or non-Gaussian data such as spike counts. Slower than the
-  partial-correlation versions; practical for small to moderate graphs.
-- **`cits.cits_versionb`** — lagged + contemporaneous edges with signed LSCM
-  edge weights (the pipeline used for the paper's neural analyses). Use it
-  when (i) the sampling rate is slow relative to the interaction timescale so
-  within-frame/contemporaneous effects matter (e.g. calcium imaging, or
-  coarse time bins), or (ii) you want signed weights and a fuller causal
-  graph. Backend is `auto` (CPU for small graphs; cuPC recommended above
-  ~100 variables).
+Start from the table in "How to run CITS". Practical limits:
 
-The ~100-variable figure is a practical guideline, not a hard rule; benchmark
+- **`cits.methods.cits_full`**: the exhaustive search grows quickly with the
+  number of variables. p=4 with T=2000 takes about 25 s on one CPU core;
+  p=5 with T=3000 took about 20 min. For more variables with partial
+  correlation, use `cits_gpu` or `cits_contemporaneous`.
+- **`cits.cits_rcit`**: slower per test than partial correlation; practical
+  for small to moderate graphs, faster on a GPU. Lower `max_cond_size` to
+  trade search depth for speed.
+- **`cits.cits_gpu`**: needs an NVIDIA GPU and cuPC; scales to about 1000
+  variables.
+- **`cits.cits_contemporaneous`**: CPU is fine for small to moderate graphs;
+  cuPC is recommended above about 100 variables.
+
+The 100-variable figure is a practical guideline, not a hard rule; benchmark
 your own setup.
 
 ## Choosing parameters
@@ -319,19 +324,20 @@ your own setup.
   is about one time bin (the paper's setting for ~10 ms neural bins). Larger
   `tau` captures longer-lag dependencies but costs statistical power. Pick
   `tau` from the known interaction timescale / autocorrelation of your data.
-  Note `cits_versionb` currently supports `tau=1` only.
+  Note `cits_contemporaneous` currently supports `tau=1` only.
 - **`alpha` (CI-test level)** — controls sparsity. Default `0.05`. Lower
   (`0.01`) gives a sparser, more conservative graph; higher (`0.1`) is denser
   and more sensitive. Check stability across `{0.01, 0.05, 0.1}`.
 - **Time-bin / sampling** — finer bins resolve directionality better but give
-  fewer counts per bin (less power) and can break Gaussianity (then use the
-  HSIC test). Bins coarser than the interaction delay push effects into the
-  contemporaneous slice (then use `cits_versionb`). ~10 ms bins were used for
+  fewer counts per bin (less power) and can break Gaussianity (then use
+  `cits_rcit`). Bins coarser than the interaction delay push effects into the
+  contemporaneous slice (then use `cits_contemporaneous`). ~10 ms bins were used for
   spike data in the paper.
-- **CI test** — Gaussian partial correlation (default, fast) for approximately
-  linear/Gaussian data; HSIC (needs R + `kpcalg`) for nonlinear/non-Gaussian
-  data.
-- **`backend` (`cits_versionb`)** — `'cpu'` for small-to-moderate graphs;
+- **CI test** — partial correlation (fast) for approximately linear/Gaussian
+  data; RCIT (`cits_rcit`) for nonlinear/non-Gaussian data. `cits_full` also
+  accepts `cond_dep='cond_dep_hsic'`, an exact kernel test that needs R and
+  `kpcalg`; RCIT is its faster approximation.
+- **`backend` (`cits_contemporaneous`)** — `'cpu'` for small-to-moderate graphs;
   `'cupc'` recommended above ~100 variables; `'auto'` picks cuPC when
   available.
 - **Reproducible graphs** — for a robust graph, run over multiple independent
@@ -344,7 +350,7 @@ your own setup.
 
 cuPC is the **recommended backend for large graphs** (more than ~100
 variables, as a practical guideline; benchmark your own setup). It is
-**optional**: `cits_gpu` requires it, but base CITS and `cits_versionb`
+**optional**: `cits_gpu` requires it, but base CITS and `cits_contemporaneous`
 (with the CPU backend, which `backend='auto'` selects automatically when no
 GPU is present) run with no GPU at all.
 
@@ -363,24 +369,9 @@ cd cupc
 nvcc -O3 --shared -Xcompiler -fPIC -o Skeleton.so cuPC-S.cu
 ```
 
-### How the package finds `Skeleton.so`
+### Telling the package where `Skeleton.so` is
 
-The first time you call `cits_gpu` or `cits_versionb`, the package resolves
-the cuPC directory (once per process) using the first location that actually
-contains `Skeleton.so`:
-
-1. The `CUPC_DIR` environment variable.
-2. A persisted config file, `${XDG_CONFIG_HOME:-~/.config}/cits/cupc_dir`.
-3. Candidate defaults: `~/repos/cupc`, `<package_dir>/external/cupc`,
-   `./cupc`, `./repos/cupc`.
-4. If still not found and you are on an interactive terminal, the package
-   **asks once**: `Enter path to your cuPC directory (must contain
-   Skeleton.so):`. A valid answer is remembered in the config file (step 2),
-   so you are not asked again on future runs.
-5. If still not found and the session is non-interactive (e.g. a notebook or
-   a batch job), a clear error explains what was tried and how to fix it.
-
-Set the location explicitly in either of these ways:
+Point the package to the directory that contains `Skeleton.so`, in either way:
 
 ```
 export CUPC_DIR=/path/to/cupc          # environment variable
@@ -388,13 +379,14 @@ export CUPC_DIR=/path/to/cupc          # environment variable
 
 ```python
 import cits
-cits.set_cupc_dir("/path/to/cupc")     # validates and persists to the config file
+cits.set_cupc_dir("/path/to/cupc")     # checks the path and remembers it
 ```
 
-`set_cupc_dir` is the recommended path for notebooks and other
-non-interactive environments, where the prompt is not shown. Discovery never
-runs at `import cits` time, so `import cits` and base CITS always work with no
-cuPC present.
+`set_cupc_dir` remembers the location across sessions, so you only do this
+once. If neither is set, the package checks a few default locations such as
+`./cupc` and, in an interactive
+terminal, asks once for the path. `import cits` never looks for cuPC, so
+everything except the GPU backend works without it.
 
 **Citation for cuPC** (`zarebavani2020cupc`): Zarebavani, B., Jafarinejad, F.,
 Hashemi, M. & Salehkaleybar, S. (2020). cuPC: CUDA-based Parallel PC Algorithm
@@ -403,7 +395,7 @@ Distributed Systems*, 31(3), 530-542.
 
 ## What you'll see / troubleshooting
 
-- **Backend notice.** The first Version-B run in a process emits one line
+- **Backend notice.** The first `cits_contemporaneous` run in a process emits one line
   (via the `cits` logger; stderr by default) saying which backend it chose
   and why:
   - `cits: using cuPC GPU backend.` — `backend='auto'` found a working cuPC.
@@ -411,7 +403,7 @@ Distributed Systems*, 31(3), 530-542.
     see README 'GPU setup' to enable GPU acceleration).` — `auto` fell back
     to CPU (small graph).
   - For a CPU run above ~100 variables (explicit `backend='cpu'`, or `auto`
-    with no cuPC): `cits: Version B on CPU with p=NN variables may be slow;
+    with no cuPC): `cits: contemporaneous CITS on CPU with p=NN variables may be slow;
     the CPU skeleton search scales steeply with p. In our scaling benchmark
     the cuPC GPU backend inferred p=1000-variable graphs in ~33 s. The GPU
     backend is recommended above ~100 variables (see README).`
@@ -438,7 +430,7 @@ Distributed Systems*, 31(3), 530-542.
   p=1000-variable graphs in ~33 s on cuPC. `backend='auto'` picks cuPC when
   available.
 
-- **Input validation.** `cits_full`, `cits_gpu`, and `cits_versionb` check X
+- **Input validation.** `cits_full`, `cits_gpu`, and `cits_contemporaneous` check X
   up front: X must be 2D `(p variables, T timepoints)`; NaN/inf raises a clear
   error; a transposed-looking array (p > T) warns; constant/all-zero variable
   rows warn with the offending indices (partial correlation is undefined on
@@ -454,10 +446,10 @@ Distributed Systems*, 31(3), 530-542.
     with backend='cpu'.` (no silent fallback).
 
 - **Progress for long runs.** Pass `verbose=True` to print concise stage
-  markers to stderr: `[cits versionB] 1/4 lagged skeleton (p=NN)`,
+  markers to stderr: `[cits contemporaneous] 1/4 lagged skeleton (p=NN)`,
   `2/4 contemporaneous PC`, `3/4 union`, `4/4 LSCM refit`.
 
-- **`tau>1` with `cits_versionb`.** Raises a clear error; the union step
+- **`tau>1` with `cits_contemporaneous`.** Raises a clear error; the union step
   supports `tau=1` only. Use `cits_gpu(X, tau=...)` for higher-lag
   lagged-only inference.
 

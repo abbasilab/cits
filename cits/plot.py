@@ -21,7 +21,7 @@ networkx) are imported lazily inside the functions, so ``import cits`` and the
 base algorithm never require them. Calling a plot function without matplotlib
 raises a clear ImportError telling you to ``pip install cits[viz]``.
 
-Adjacency conventions (match cits_versionb / cits_gpu):
+Adjacency conventions (match cits_contemporaneous / cits_gpu):
   A[i, j] != 0  -> directed edge i -> j (row = source/parent, col = target).
   A[i, j] and A[j, i] both != 0 -> reciprocal pair, drawn as one double-headed
       arc (one arrowhead near each end).

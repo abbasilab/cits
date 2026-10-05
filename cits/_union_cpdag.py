@@ -19,7 +19,7 @@ Outputs:
 
   pc_contemp_G_cpdag : np.ndarray (p, p) int
       Pass-through of the PC-contemp CPDAG. Returned for convenience so
-      Version B drivers have a single object to hand to lscm_refit_cpdag.
+      Contemporaneous-CITS drivers have a single object to hand to lscm_refit_cpdag.
 
   union_skeleton : np.ndarray (p, p) bool
       Binary mask of edges in the FULL union skeleton (PC-contemp skeleton
@@ -39,7 +39,7 @@ Outputs:
         as a separately-classified edge.
 
 IDA consistency note (important):
-  When the Version B driver invokes lscm_refit_cpdag on the PC-contemp
+  When the contemporaneous-CITS driver invokes lscm_refit_cpdag on the PC-contemp
   CPDAG WITH the lagged extra parents, IDA consistency is checked against
   the PC-contemp CPDAG ONLY -- the lagged parents are extra regressors,
   not orientation evidence.

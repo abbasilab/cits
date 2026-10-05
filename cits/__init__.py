@@ -1,20 +1,28 @@
 """
 CITS algorithm for Causal Inference in Time Series.
 
-Three ways to run CITS:
-  1. Base (CPU)         -- cits.methods.cits_full / cits_full_weighted
-  2. GPU (cuPC)         -- cits.cits_gpu
-  3. Contemporaneous /  -- cits.cits_versionb
-     Version B
+Every function runs the same CITS algorithm. They differ in two choices:
 
-Or dispatch by name with ``cits.run(X, method)`` where method is one of
-'base', 'gpu', 'versionb'.
+  Conditional-independence test (match it to your data)
+    - partial correlation (Fisher z): linear / Gaussian data
+    - RCIT kernel test: nonlinear or non-Gaussian data, e.g. spike counts
 
-The GPU and Version-B entry points require a compiled cuPC ``Skeleton.so``
-and a CUDA-capable GPU (see the README "GPU setup (cuPC)" section). Their
-imports degrade gracefully: ``import cits`` always succeeds on a CPU-only
-machine, and the GPU/Version-B functions raise a clear error when the cuPC
-dependency is unavailable at call time.
+  Search (match it to graph size and sampling rate)
+    - exhaustive conditioning-set search, small to moderate graphs:
+        cits.methods.cits_full (partial correlation)
+        cits.cits_rcit (RCIT; GPU if available, else CPU)
+    - neighbor-restricted search, large graphs (~100 to 1000+ variables):
+        cits.cits_gpu (partial correlation, GPU via cuPC)
+    - lagged plus contemporaneous (same-time) edges, for slow sampling:
+        cits.cits_contemporaneous (partial correlation; CPU or GPU)
+
+Or dispatch by name with ``cits.run(X, method)``, where method is one of
+'base', 'gpu', 'rcit', 'contemporaneous'.
+
+``import cits`` always succeeds on a CPU-only machine. ``cits_gpu`` (and
+``cits_contemporaneous(backend='cupc')``) need a compiled cuPC ``Skeleton.so``
+and a CUDA GPU, and raise a clear error at call time when it is unavailable
+(see the README "GPU setup (cuPC)" section).
 
 Extras:
   - ``cits.plot_graph`` / ``cits.plot_matrix`` -- publication-style figures
@@ -26,7 +34,9 @@ Logging: messages go through ``logging.getLogger('cits')``. Set its level to
 control verbosity; ``CITS_QUIET=1`` silences informational notices.
 """
 
-__version__ = "1.9.0"
+__version__ = "1.9.1"
+
+import warnings
 
 from . import methods, simulate_timeseries
 
@@ -44,7 +54,7 @@ except Exception as _set_cupc_err:  # pragma: no cover - env dependent
             f"failed to import. Original import error: {_set_cupc_dir_err!r}"
         ) from _set_cupc_dir_err
 
-# GPU and Version-B entry points. Import failures (e.g. missing optional
+# GPU and contemporaneous entry points. Import failures (e.g. missing optional
 # dependencies) must not break `import cits` or the base CPU algorithm, so
 # each is wrapped: if the import fails, the public name is replaced by a
 # shim that raises a clear ImportError only when the function is called.
@@ -63,19 +73,25 @@ except Exception as _gpu_import_error:  # pragma: no cover - env dependent
         ) from _cits_gpu_err
 
 try:
-    from .contemporaneous import cits_versionb
-except Exception as _vb_import_error:  # pragma: no cover - env dependent
-    _cits_vb_err = _vb_import_error
+    from .contemporaneous import cits_contemporaneous
+except Exception as _contemp_import_error:  # pragma: no cover - env dependent
+    _cits_contemp_err = _contemp_import_error
 
-    def cits_versionb(*args, **kwargs):
+    def cits_contemporaneous(*args, **kwargs):
         raise ImportError(
-            "cits.cits_versionb is unavailable because its dependencies "
-            "failed to import. The contemporaneous / Version-B pipeline "
-            "requires a compiled cuPC 'Skeleton.so' and a CUDA-capable GPU; "
-            "set the CUPC_DIR environment variable to the directory "
-            "containing Skeleton.so (see the README 'GPU setup (cuPC)' "
-            f"section). Original import error: {_cits_vb_err!r}"
-        ) from _cits_vb_err
+            "cits.cits_contemporaneous is unavailable because its dependencies "
+            "failed to import (see the original error below). It runs on the "
+            "CPU with backend='cpu'; backend='cupc' additionally needs a compiled "
+            "cuPC 'Skeleton.so' (README 'GPU setup (cuPC)'). "
+            f"Original import error: {_cits_contemp_err!r}"
+        ) from _cits_contemp_err
+
+def cits_versionb(*args, **kwargs):
+    """Deprecated name of :func:`cits_contemporaneous` (v1.9.0). Use that instead."""
+    warnings.warn("cits.cits_versionb is deprecated; use cits.cits_contemporaneous.",
+                  DeprecationWarning, stacklevel=2)
+    return cits_contemporaneous(*args, **kwargs)
+
 
 # RCIT (kernel CI test) variant. Pure Python at import; torch is imported only
 # when cits_rcit is called with null='gamma' (pip install cits[rcit]).
@@ -102,7 +118,7 @@ except Exception as _plot_import_error:  # pragma: no cover - env dependent
         ) from _cits_plot_err
 
 
-_METHODS = ("base", "gpu", "versionb", "rcit")
+_METHODS = ("base", "gpu", "contemporaneous", "rcit")
 
 
 def run(X, method, **kwargs):
@@ -114,7 +130,7 @@ def run(X, method, **kwargs):
         Time series, p variables by T timepoints.
     method : str
         One of 'base' (-> cits.methods.cits_full), 'gpu' (-> cits.cits_gpu),
-        'versionb' (-> cits.cits_versionb), or 'rcit' (-> cits.cits_rcit).
+        'contemporaneous' (-> cits.cits_contemporaneous), or 'rcit' (-> cits.cits_rcit).
     **kwargs
         Passed through to the dispatched function (e.g. tau, alpha, backend).
 
@@ -126,14 +142,18 @@ def run(X, method, **kwargs):
         return methods.cits_full(X, **kwargs)
     if method == "gpu":
         return cits_gpu(X, **kwargs)
-    if method == "versionb":
-        return cits_versionb(X, **kwargs)
+    if method == "versionb":  # pre-1.9.1 name
+        warnings.warn("method='versionb' is deprecated; use method='contemporaneous'.",
+                      DeprecationWarning, stacklevel=2)
+        method = "contemporaneous"
+    if method == "contemporaneous":
+        return cits_contemporaneous(X, **kwargs)
     if method == "rcit":
         return cits_rcit(X, **kwargs)
     raise ValueError(
         f"unknown method {method!r}; valid methods are {list(_METHODS)} "
         f"('base' -> cits_full, 'gpu' -> cits_gpu, "
-        f"'versionb' -> cits_versionb, 'rcit' -> cits_rcit).")
+        f"'contemporaneous' -> cits_contemporaneous, 'rcit' -> cits_rcit).")
 
 
 _CITE = (
@@ -166,7 +186,7 @@ __all__ = [
     "methods",
     "simulate_timeseries",
     "cits_gpu",
-    "cits_versionb",
+    "cits_contemporaneous",
     "cits_rcit",
     "run",
     "set_cupc_dir",

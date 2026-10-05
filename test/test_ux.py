@@ -37,7 +37,7 @@ def test_run_unknown_method_lists_valid():
     with pytest.raises(ValueError) as e:
         cits.run(_toy(), 'nope')
     msg = str(e.value)
-    assert all(m in msg for m in ('base', 'gpu', 'versionb'))
+    assert all(m in msg for m in ('base', 'gpu', 'contemporaneous'))
 
 
 # --------------------------- input validation ----------------------------

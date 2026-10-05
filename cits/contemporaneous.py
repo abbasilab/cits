@@ -1,11 +1,11 @@
 """
 cits.contemporaneous
 
-Contemporaneous / "Version B" CITS.
+CITS with contemporaneous edges.
 
 The base CITS-lag skeleton (``cits.gpu.cits_gpu``) infers only LAGGED
 (directed-in-time) causal edges. It omits contemporaneous (lag-0)
-structure. Version B augments the lagged skeleton with a contemporaneous PC
+structure. Contemporaneous CITS augments the lagged skeleton with a contemporaneous PC
 step and refits one coherent set of signed structural coefficients over the
 UNION of lagged and contemporaneous parents.
 
@@ -76,14 +76,14 @@ _LARGE_P_THRESHOLD = 100
 
 def _progress(stage):
     """Concise per-stage marker (only when verbose=True), via the logger."""
-    log_info(f"[cits versionB] {stage}")
+    log_info(f"[cits contemporaneous] {stage}")
 
 
 def _cpu_large_p_msg(p):
     """Data-informed heads-up for large-p CPU runs. The ~33 s figure is the
     GPU (cuPC) number from the paper's scaling benchmark; no CPU-CITS runtime
     is claimed. ~100 is an approximate guideline."""
-    return (f"cits: Version B on CPU with p={p} variables may be slow; the CPU "
+    return (f"cits: contemporaneous CITS on CPU with p={p} variables may be slow; the CPU "
             f"skeleton search scales steeply with p. In our scaling benchmark "
             f"the cuPC GPU backend inferred p=1000-variable graphs in ~33 s. "
             f"The GPU backend is recommended above ~{_LARGE_P_THRESHOLD} "
@@ -169,14 +169,14 @@ def _skeleton_stages(X, X_Tp, alpha, tau, name, verbose):
     return cits_lagged_B, pc_skel, sep_sets
 
 
-def cits_versionb(X, alpha: float = 0.05, tau: int = 1, backend: str = 'auto',
+def cits_contemporaneous(X, alpha: float = 0.05, tau: int = 1, backend: str = 'auto',
                   use_meek: bool = False, weight_lagged_only: bool = False,
                   full_output: bool = False, verbose: bool = False):
-    """Contemporaneous / Version-B CITS: signed weighted adjacency over the
+    """CITS with contemporaneous edges: signed weighted adjacency over the
     union of lagged (CITS) and contemporaneous (PC) causal structure.
 
     This is the pipeline used for the paper's neural analyses. Unlike base
-    CITS and ``cits_gpu`` (lagged edges only), Version B also recovers
+    CITS and ``cits_gpu`` (lagged edges only), contemporaneous CITS also recovers
     contemporaneous (within-time-slice) edges and assigns signed structural
     (LSCM) edge weights.
 
@@ -208,7 +208,7 @@ def cits_versionb(X, alpha: float = 0.05, tau: int = 1, backend: str = 'auto',
         to CPU.
     use_meek : bool
         If False (default), orient the contemp skeleton with v-structures
-        only (no Meek propagation) -- the paper's Version-B-safe orientation.
+        only (no Meek propagation) -- the paper's orientation.
         If True, additionally apply Meek's R1-R3.
     weight_lagged_only : bool
         Controls whether lagged-ONLY edges (present in the lagged CITS graph
@@ -244,13 +244,13 @@ def cits_versionb(X, alpha: float = 0.05, tau: int = 1, backend: str = 'auto',
         'lagged'         : (p, p) int rolled lagged adjacency
         'cpdag'          : (p, p) int contemp PC CPDAG
     """
-    X = validate_X(X, "cits_versionb")
+    X = validate_X(X, "cits_contemporaneous")
     X = np.ascontiguousarray(X, dtype=np.float64)
     p, T = X.shape
 
     if tau != 1:
         raise ValueError(
-            "cits_versionb currently supports tau=1 (the union step). For "
+            "cits_contemporaneous currently supports tau=1 (the union step). For "
             "lagged-only inference at higher tau use cits_gpu(X, tau=...).")
 
     # Decide the concrete backend and emit the one-time notice.

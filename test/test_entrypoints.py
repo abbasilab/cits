@@ -3,9 +3,9 @@ Tests for the three CITS entry points.
 
   1. base CITS (cits.methods.cits_full)      -- CPU, always runs
   2. GPU CITS (cits.cits_gpu)                 -- needs cuPC; skipped otherwise
-  3. Version-B CITS (cits.cits_versionb)      -- needs cuPC; skipped otherwise
+  3. Contemporaneous CITS (cits.cits_contemporaneous)      -- needs cuPC; skipped otherwise
 
-The GPU / Version-B tests skip (rather than fail) when cuPC is unavailable,
+The GPU / contemporaneous tests skip (rather than fail) when cuPC is unavailable,
 so the suite passes on a CPU-only machine. A GPU is NOT required for the base
 tests to pass.
 """
@@ -46,7 +46,7 @@ def _cupc_available():
 def test_import_cits():
     import cits
     exported = [n for n in dir(cits) if not n.startswith("__")]
-    for name in ("methods", "simulate_timeseries", "cits_gpu", "cits_versionb"):
+    for name in ("methods", "simulate_timeseries", "cits_gpu", "cits_contemporaneous"):
         assert name in exported, f"{name} not exported from cits ({exported})"
 
 
@@ -61,9 +61,9 @@ def test_gpu_entrypoint_importable():
     assert callable(cits.cits_gpu)
 
 
-def test_versionb_entrypoint_importable():
+def test_contemporaneous_entrypoint_importable():
     import cits
-    assert callable(cits.cits_versionb)
+    assert callable(cits.cits_contemporaneous)
 
 
 def test_set_cupc_dir_exported():
@@ -93,7 +93,7 @@ def test_base_cits_runs_cpu():
 
 
 # ---------------------------------------------------------------------------
-#  GPU / Version-B: skip when cuPC unavailable
+#  GPU / contemporaneous: skip when cuPC unavailable
 # ---------------------------------------------------------------------------
 
 def test_gpu_cits_runs_if_cupc():
@@ -106,12 +106,12 @@ def test_gpu_cits_runs_if_cupc():
     assert B.shape == (X.shape[0], X.shape[0])
 
 
-def test_versionb_cits_runs_if_cupc():
+def test_contemporaneous_cits_runs_if_cupc():
     if not _cupc_available():
         pytest.skip("cuPC (Skeleton.so) unavailable; set CUPC_DIR and build it")
     import cits
     X = _toy_series()
-    B = cits.cits_versionb(X, alpha=0.05, tau=1)
+    B = cits.cits_contemporaneous(X, alpha=0.05, tau=1)
     B = np.asarray(B)
     assert B.shape == (X.shape[0], X.shape[0])
 
@@ -145,11 +145,11 @@ def test_cpu_skeleton_runs():
     assert np.all(np.diag(G) == 0)
 
 
-def test_versionb_cpu_runs_without_gpu():
-    """cits_versionb(backend='cpu') returns a (p, p) result with no GPU."""
+def test_contemporaneous_cpu_runs_without_gpu():
+    """cits_contemporaneous(backend='cpu') returns a (p, p) result with no GPU."""
     import cits
     X = _toy_series()
-    B = cits.cits_versionb(X, alpha=0.05, tau=1, backend='cpu')
+    B = cits.cits_contemporaneous(X, alpha=0.05, tau=1, backend='cpu')
     B = np.asarray(B)
     assert B.shape == (X.shape[0], X.shape[0])
 
@@ -170,8 +170,23 @@ def test_cpu_matches_cupc_skeleton():
     assert np.array_equal(G_cpu, G_gpu)
 
 
-def test_versionb_bad_backend_raises():
+def test_contemporaneous_bad_backend_raises():
     import cits
     X = _toy_series()
     with pytest.raises(ValueError):
-        cits.cits_versionb(X, alpha=0.05, tau=1, backend='nonsense')
+        cits.cits_contemporaneous(X, alpha=0.05, tau=1, backend='nonsense')
+
+
+def test_deprecated_versionb_names_still_work():
+    """v1.9.0 names (cits_versionb, method='versionb') warn and give the same result."""
+    import warnings
+    import cits
+    from cits import simulate_timeseries
+    X, _, _ = simulate_timeseries.simulate('lingauss1', noise=1.0, T=600)
+    new = cits.cits_contemporaneous(X, alpha=0.05, tau=1, backend='cpu')
+    with pytest.warns(DeprecationWarning):
+        old = cits.cits_versionb(X, alpha=0.05, tau=1, backend='cpu')
+    with pytest.warns(DeprecationWarning):
+        via_run = cits.run(X, 'versionb', alpha=0.05, tau=1, backend='cpu')
+    assert np.array_equal(np.nan_to_num(new), np.nan_to_num(old))
+    assert np.array_equal(np.nan_to_num(new), np.nan_to_num(via_run))

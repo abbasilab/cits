@@ -25,9 +25,9 @@ Two null distributions:
 
 The computational core is copied from the code that produced the paper's
 results, so it reproduces them exactly for the same arguments and seed. The
-paper's benchmarks used ``K=25`` and ``max_cond_size=5``; here
-``max_cond_size=None`` (no cap: search all conditioning-set sizes) is the
-default.
+paper's benchmarks used ``K=25`` and ``max_cond_size=None`` (no cap: search
+all conditioning-set sizes), which is the default; only its Markov-order
+analysis used ``max_cond_size=5``.
 """
 from __future__ import annotations
 
@@ -479,7 +479,7 @@ def cits_rcit(X, alpha: float = 0.05, tau: int = 1, K: int = 25,
         Random Fourier features per variable (paper: 25).
     max_cond_size : int or None
         Maximum conditioning-set size searched. ``None`` (default) searches all
-        sizes. The paper's benchmarks used 5.
+        sizes, as in the paper's benchmarks.
     seed : int
         Random seed for the Fourier features; results are reproducible for a
         fixed seed, device and dtype.

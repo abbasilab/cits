@@ -6,7 +6,7 @@ Python ctypes wrapper for cuPC (Zarebavani et al. 2020, TPDS).
 Shared library location
 ------------------------
 The compiled cuPC skeleton library ``Skeleton.so`` is a REQUIRED external
-dependency for the GPU and Version-B modes (base CITS does not need it). It
+dependency for the GPU and contemporaneous modes (base CITS does not need it). It
 is a GPU/CUDA build, not on PyPI, and is licensed separately under cuPC's own
 GPL-3.0 license, so it is NOT bundled with this package.
 
@@ -28,7 +28,7 @@ cached once per process, using the first location that actually contains it:
 Notebook / non-interactive users can set the path programmatically with
 ``cits.set_cupc_dir('/path/to/cupc')`` (validates and persists it).
 
-Discovery only runs when a GPU/Version-B function is actually called, never
+Discovery only runs when a GPU/contemporaneous function is actually called, never
 at ``import cits`` time.
 
 Build cuPC::
@@ -149,7 +149,7 @@ def _not_found_error():
     return FileNotFoundError(
         f"cuPC shared library ('{_LIB_NAME}') not found.\n"
         f"cuPC is required for cits_gpu and for backend='cupc' "
-        f"(base CITS, cits_rcit and cits_versionb(backend='cpu') do not need it). It is a compiled GPU/CUDA "
+        f"(base CITS, cits_rcit and cits_contemporaneous(backend='cpu') do not need it). It is a compiled GPU/CUDA "
         f"artifact, not on PyPI, so it is not bundled with the cits package.\n"
         f"Directories tried:\n{tried_str}\n"
         f"Fix it in any of these ways:\n"

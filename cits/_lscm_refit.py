@@ -8,7 +8,7 @@ X of shape (T, p), this module estimates one signed coefficient per edge:
 
   - DIRECTED edges (parent -> child in the CPDAG): OLS of child on its
     parent set in the CPDAG (plus any caller-supplied extra parents, e.g.,
-    lagged parents in Version B). The coefficient on the parent is the LSCM
+    lagged parents in contemporaneous CITS). The coefficient on the parent is the LSCM
     beta. Under linear-Gaussian SEM with the chosen DAG correct, this is the
     structural causal effect.
 
@@ -218,7 +218,7 @@ def ida_conservative_for_undirected_edge(X, G_cpdag, edge,
     edge : tuple (i, j)
     extra_parents_per_child : dict[int -> list[(node, lag)]] or None
         Optional caller-supplied extra parents (e.g., CITS-lagged parents
-        for Version B). For Version A, leave None.
+        for contemporaneous CITS). For lagged-only CITS, leave None.
 
     Returns
     -------

@@ -1,5 +1,18 @@
 # Changelog
 
+## v1.9.1
+
+- **Renamed `cits.cits_versionb` to `cits.cits_contemporaneous`**, and
+  `cits.run(..., method='versionb')` to `method='contemporaneous'`. The old
+  names still work and emit a `DeprecationWarning`. Behaviour and output are
+  unchanged.
+- README: "How to run CITS" now organizes the functions by the two choices
+  that distinguish them (conditional-independence test x search) in one table,
+  so it is clear that every function runs CITS. Shorter cuPC setup section.
+- Docstrings: corrected the RCIT conditioning-set cap used by the paper (no
+  cap); corrected the import-error message of `cits_contemporaneous`, which
+  runs on the CPU without cuPC.
+
 ## v1.9.0
 
 - **New: `cits.cits_rcit`**, CITS with the randomized conditional-independence
@@ -8,8 +21,7 @@
   reference (`null='perm'`). Windows of 2*tau+1 time points. Ported from the
   code behind the paper's nonlinear and spiking benchmarks and verified to give
   identical graphs (30/30 GPU, 3/3 permutation reference). Default
-  `max_cond_size=None` (no cap); `max_cond_size=5` reproduces the paper's
-  Table 1 exactly. New extra: `pip install cits[rcit]`. Available through
+  `max_cond_size=None` (no cap), as in the paper's Table 1. New extra: `pip install cits[rcit]`. Available through
   `cits.run(X, 'rcit')`.
 - Includes all v1.8.3 changes (license, citation, packaging and NumPy 2 fixes).
 
@@ -91,10 +103,10 @@ facade, and a citation helper.
   a plot function without it raises a clear ImportError. `import cits` never
   requires matplotlib.
 - **Unified dispatch facade `cits.run(X, method, **kwargs)`** with method in
-  {'base', 'gpu', 'versionb'} dispatching to `cits_full` / `cits_gpu` /
-  `cits_versionb`. Unknown methods raise a clear error listing the valid ones.
+  {'base', 'gpu', 'contemporaneous'} dispatching to `cits_full` / `cits_gpu` /
+  `cits_contemporaneous`. Unknown methods raise a clear error listing the valid ones.
 - **Friendly input validation** at the top of `cits_full`,
-  `cits_full_weighted`, `cits_gpu`, and `cits_versionb`: requires a 2D array,
+  `cits_full_weighted`, `cits_gpu`, and `cits_contemporaneous`: requires a 2D array,
   raises an actionable error on NaN/inf, warns when X looks transposed
   (p > T, expected `(p variables, T timepoints)`), and warns (with offending
   indices) on constant/all-zero variable rows (partial correlation is
@@ -124,20 +136,20 @@ users always know which backend is running and what to do when something fails.
 
 ### Changed
 
-- **`cits_versionb` now reproduces the paper's montage pipeline exactly by
+- **`cits_contemporaneous` now reproduces the paper's montage pipeline exactly by
   default.** New parameter `weight_lagged_only: bool = False`. When False
   (default), the pipeline stops after the union LSCM refit, leaving
   lagged-only edges (present in the lagged graph but not the contemporaneous
-  skeleton) unweighted -- matching `_neuropixels_versionB_pooled.versionB_directed`
+  skeleton) unweighted -- matching `fig5_neuropixels/_neuropixels_contemp_pooled.py (contemp_directed) in cits-paper`
   and the Fig 5A magnitudes. When True, it also OLS-weights the lagged-only
   edges (the previous, fuller behavior). Note: this changes the default
-  numeric output of `cits_versionb` relative to v1.5/v1.6 (e.g. on gabors,
+  numeric output of `cits_contemporaneous` relative to v1.5/v1.6 (e.g. on gabors,
   41 nonzeros instead of 47); the union skeleton and edge-type outputs are
   unchanged.
 
 ### Added (user experience)
 
-- **One-time backend notice** (stderr, once per process) when a Version-B run
+- **One-time backend notice** (stderr, once per process) when a contemporaneous run
   starts: `cits: using cuPC GPU backend.` (auto found cuPC),
   `cits: cuPC not found; using the CPU backend ...` (auto fell back), or the
   existing >100-variable recommendation for explicit `backend='cpu'`.
@@ -147,14 +159,14 @@ users always know which backend is running and what to do when something fails.
   CPU backend; under explicit `backend='cupc'` it re-raises with actionable
   guidance (fix cuPC/CUDA or use `backend='cpu'`) rather than silently
   falling back.
-- **Actionable `tau>1` error** for `cits_versionb` pointing to `cits_gpu` for
+- **Actionable `tau>1` error** for `cits_contemporaneous` pointing to `cits_gpu` for
   higher-lag lagged-only inference. The invalid-`backend` `ValueError` is
   unchanged.
 - **Progress markers** to stderr when `verbose=True`
-  (`[cits versionB] 1/4 lagged skeleton (p=NN)`, `2/4 contemporaneous PC`,
+  (`[cits contemporaneous] 1/4 lagged skeleton (p=NN)`, `2/4 contemporaneous PC`,
   `3/4 union`, `4/4 LSCM refit`). Silent by default.
 - **Equivalence test** (`test/test_paper_repro.py`, runs only when cuPC is
-  available) asserting `cits_versionb(X, backend='cupc', weight_lagged_only=False)`
+  available) asserting `cits_contemporaneous(X, backend='cupc', weight_lagged_only=False)`
   reproduces the original montage pipeline bit-for-bit on the gabors input.
 
 ### Docs
@@ -179,7 +191,7 @@ pure-Python path.
   the same skeleton as cuPC. Validated: on a toy graph the CPU and cuPC
   skeletons are identical. Used for both the lagged unrolled-window skeleton
   and the contemporaneous slice.
-- **`backend` argument on `cits_versionb`.** `'auto'` (new default) uses cuPC
+- **`backend` argument on `cits_contemporaneous`.** `'auto'` (new default) uses cuPC
   if a working `Skeleton.so` is found, else the CPU skeleton; `'cpu'` forces
   CPU; `'cupc'` forces GPU (clear error if unavailable). On the CPU path with
   more than ~100 variables, a one-time recommendation to use the cuPC backend
@@ -191,7 +203,7 @@ pure-Python path.
 ### Changed
 
 - **cuPC is optional, recommended for large graphs (> ~100 variables), not
-  required.** `import cits`, base CITS, and `cits_versionb(backend='cpu')`
+  required.** `import cits`, base CITS, and `cits_contemporaneous(backend='cpu')`
   need nothing native. `cits_gpu` stays cuPC-only (it is the GPU accelerator).
 - **R / `kpcalg` is now an optional extra.** `rpy2` moved out of core
   `install_requires` into `extras_require['hsic']` (`pip install cits[hsic]`);
@@ -221,7 +233,7 @@ The repository now offers three entry points.
   rolled lagged binary adjacency. Requires a compiled cuPC `Skeleton.so` and
   a CUDA-capable GPU.
 
-- **Contemporaneous / Version-B CITS (`cits.cits_versionb`).** Augments the
+- **CITS with contemporaneous edges (`cits.cits_contemporaneous`).** Augments the
   lagged CITS skeleton with a contemporaneous PC step, unions the lagged and
   contemporaneous parents, and refits one coherent set of signed structural
   (LSCM) coefficients per child. Pipeline: lagged skeleton (`cits_gpu`) +
@@ -240,8 +252,8 @@ The repository now offers three entry points.
   environment variable, and a clear, actionable error is raised if it is not
   found. See the README "GPU setup (cuPC)" section and cite
   `zarebavani2020cupc`.
-- The GPU/Version-B imports degrade gracefully: `import cits` and the base
-  CPU algorithm work on a CPU-only machine; the GPU/Version-B functions raise
+- The GPU/contemporaneous imports degrade gracefully: `import cits` and the base
+  CPU algorithm work on a CPU-only machine; the GPU/contemporaneous functions raise
   a clear error only when called without cuPC available.
 
 ## v1.4
