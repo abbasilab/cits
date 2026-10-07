@@ -1,5 +1,16 @@
 # Changelog
 
+## v1.9.3
+
+- **cuPC thresholds.** The cuPC wrapper (used by `cits_gpu`, by
+  `cits_contemporaneous` and by the cuPC backend of `pc_skeleton_raw`) passed
+  14 Fisher-z thresholds, for conditioning levels 0 to 13. cuPC runs levels 0
+  to 14 and read the level-14 threshold from past the end of the array. The
+  wrapper now passes 15. Results change only when some node keeps 15 or more
+  neighbours up to level 14. On a calcium-imaging field with 1,152 neurons and
+  1,185 samples, 1 of 6,464 edges changed. The CPU and cuPC backends now agree
+  at level 14.
+
 ## v1.9.2
 
 - **Simulator.** `simulate_timeseries.simulate('lingauss1', ...)` now generates

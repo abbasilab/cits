@@ -326,6 +326,13 @@ def _get_lib():
     return _LIB
 
 
+def _cupc_thresholds(N, alpha):
+    """Thresholds passed to cuPC. cuPC-S.cu runs conditioning levels 0 to ML
+    (ML = 14) and reads Th[l] at level l, so ML + 1 values are needed. (The
+    original R wrapper allocates 50.)"""
+    return _fisher_thresholds(N, alpha, n_levels=_ML + 1)
+
+
 def _fisher_thresholds(N, alpha, n_levels=_ML):
     """Compute the per-level Fisher-z threshold used by cuPC.
 
@@ -406,7 +413,7 @@ def pc_skeleton_cupc(X, alpha: float = 0.05, max_level: int = _ML,
     G = np.ascontiguousarray(G)
 
     # Thresholds
-    Th = _fisher_thresholds(T, alpha, n_levels=max(max_level, _ML))
+    Th = _cupc_thresholds(T, alpha)
     Th = np.ascontiguousarray(Th, dtype=np.float64)
 
     # Outputs
