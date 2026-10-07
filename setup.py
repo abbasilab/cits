@@ -3,7 +3,9 @@ import setuptools
 with open('README.md','r') as fh:
     README = fh.read()
 
-VERSION = "1.9.2"
+import re
+with open('cits/__init__.py', 'r') as fh:
+    VERSION = re.search(r'^__version__ = "([^"]+)"', fh.read(), re.M).group(1)
 
 setuptools.setup(
     # Needed to silence warnings (and to be a worthwhile package)
